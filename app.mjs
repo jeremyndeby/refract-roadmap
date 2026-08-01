@@ -1,4 +1,11 @@
-import { groupShipped, isHot, isThisWeek, roadmapContext, selectOpen } from './roadmap-logic.mjs';
+import {
+  groupShipped,
+  isHot,
+  isThisWeek,
+  relativeAge,
+  roadmapContext,
+  selectOpen,
+} from './roadmap-logic.mjs';
 
 const state = {
   data: null,
@@ -139,7 +146,7 @@ function createOpenRow(item, maxVotes) {
 
   const meta = el('div', 'meta');
   meta.append(
-    el('span', '', `opened ${formatDay(item.created_at)}`),
+    el('span', '', `posted ${formatDay(item.created_at)} · ${relativeAge(item.created_at)}`),
     el('span', '', plural(item.comments, 'comment')),
   );
   const discordLink = link(item.url, 'Vote on Discord ↗');

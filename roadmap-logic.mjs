@@ -1,5 +1,6 @@
 export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function titleOrder(a, b) {
   return a.title.localeCompare(b.title, 'en', { sensitivity: 'base' });
@@ -43,6 +44,28 @@ export function roadmapContext({ open = [], shipped = [], generated_at: generate
     shippedThisMonth: shipped.filter((item) => item.month === currentMonth).length,
     newThisWeek: open.filter((item) => isThisWeek(item, generatedAt)).length,
   };
+}
+
+export function relativeAge(value, reference = new Date()) {
+  const posted = Date.parse(`${value}T00:00:00Z`);
+  const now = reference instanceof Date ? reference.getTime() : Date.parse(reference);
+  if (!Number.isFinite(posted) || !Number.isFinite(now)) return '';
+
+  const days = Math.max(0, Math.floor((now - posted) / DAY_MS));
+  let amount = days;
+  let unit = 'day';
+  if (days >= 730) {
+    amount = Math.floor(days / 365.25);
+    unit = 'year';
+  } else if (days >= 60) {
+    amount = Math.floor(days / 30.4375);
+    unit = 'month';
+  } else if (days >= 14) {
+    amount = Math.floor(days / 7);
+    unit = 'week';
+  }
+
+  return new Intl.RelativeTimeFormat('en', { numeric: 'always' }).format(-amount, unit);
 }
 
 export function selectOpen(items, { query = '', sort = 'most-wanted', generatedAt } = {}) {
