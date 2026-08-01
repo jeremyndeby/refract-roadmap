@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#22282a">
+  <meta name="theme-color" content="#243038">
   <meta name="description" content="Browse the Refract community roadmap and vote for suggestions on Discord.">
   <title>Refract — Roadmap</title>
+  <link rel="icon" type="image/png" href="./refract-logo.png">
+  <link rel="apple-touch-icon" href="./refract-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet">
@@ -17,14 +19,41 @@
   <div class="wrap">
     <header class="masthead">
       <div class="brand">
-        <h1>Refract <span>Roadmap</span></h1>
-        <time class="freshness" id="freshness">loading…</time>
+        <img class="brand-logo" src="./refract-logo.png" alt="" width="76" height="76">
+        <div class="brand-copy">
+          <div class="brand-line">
+            <h1>Refract <span>Roadmap</span></h1>
+            <time class="freshness" id="freshness">loading…</time>
+          </div>
+          <span class="brand-kicker">Built with the community</span>
+        </div>
       </div>
       <p class="lede">
         Everything the community has asked for. Browse it here, vote on Discord.
         Anything with a note from the team means we’ve looked at it and there’s
         something worth knowing.
       </p>
+
+      <section class="pulse" aria-label="Roadmap activity">
+        <div class="pulse-intro">
+          <span class="pulse-kicker">Community pulse</span>
+          <p>A quick look at what just shipped and what arrived.</p>
+        </div>
+        <dl class="pulse-stats" aria-live="polite">
+          <div>
+            <dt>shipped this month</dt>
+            <dd id="shipped-this-month">—</dd>
+          </div>
+          <div>
+            <dt>new this week</dt>
+            <dd id="new-this-week">—</dd>
+          </div>
+        </dl>
+        <a class="report-link" href="https://discord.com/channels/1490347491151970366/1490873391086047252" target="_blank" rel="noreferrer">
+          <span>Does something look wrong?</span>
+          Tell us on Discord <span aria-hidden="true">↗</span>
+        </a>
+      </section>
 
       <nav class="tabs" role="tablist" aria-label="Roadmap views">
         <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">

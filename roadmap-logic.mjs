@@ -37,6 +37,14 @@ export function isThisWeek(item, generatedAt) {
   return created <= generated && created >= generated - sevenDays;
 }
 
+export function roadmapContext({ open = [], shipped = [], generated_at: generatedAt } = {}) {
+  const currentMonth = /^\d{4}-\d{2}/.exec(String(generatedAt ?? ''))?.[0] ?? '';
+  return {
+    shippedThisMonth: shipped.filter((item) => item.month === currentMonth).length,
+    newThisWeek: open.filter((item) => isThisWeek(item, generatedAt)).length,
+  };
+}
+
 export function selectOpen(items, { query = '', sort = 'most-wanted', generatedAt } = {}) {
   let selected = items.filter((item) => includesQuery(item, query, true));
   if (sort === 'this-week') {

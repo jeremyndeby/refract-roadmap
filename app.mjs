@@ -1,4 +1,4 @@
-import { groupShipped, isHot, isThisWeek, selectOpen } from './roadmap-logic.mjs';
+import { groupShipped, isHot, isThisWeek, roadmapContext, selectOpen } from './roadmap-logic.mjs';
 
 const state = {
   data: null,
@@ -11,6 +11,8 @@ const state = {
 
 const elements = {
   freshness: document.querySelector('#freshness'),
+  shippedThisMonth: document.querySelector('#shipped-this-month'),
+  newThisWeek: document.querySelector('#new-this-week'),
   openCount: document.querySelector('#open-count'),
   shippedCount: document.querySelector('#shipped-count'),
   openSearch: document.querySelector('#open-search'),
@@ -64,6 +66,12 @@ function formatFreshness(value) {
   if (hours < 24) return `updated ${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `updated ${days}d ago`;
+}
+
+function renderContext() {
+  const { shippedThisMonth, newThisWeek } = roadmapContext(state.data);
+  elements.shippedThisMonth.textContent = shippedThisMonth.toLocaleString('en');
+  elements.newThisWeek.textContent = newThisWeek.toLocaleString('en');
 }
 
 function chipClass(tag) {
@@ -158,6 +166,27 @@ function createOpenRow(item, maxVotes) {
   return article;
 }
 
+function createEmptyState({ title, detail, input, clear }) {
+  const section = el('section', 'empty-state');
+  section.setAttribute('role', 'status');
+  section.append(
+    el('span', 'empty-mark', 'No matches'),
+    el('h2', '', title),
+    el('p', '', detail),
+  );
+  if (input.value) {
+    const button = el('button', 'empty-clear', 'Clear search');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      input.value = '';
+      clear();
+      input.focus();
+    });
+    section.append(button);
+  }
+  return section;
+}
+
 function renderOpen() {
   const items = selectOpen(state.data.open, {
     query: state.openQuery,
@@ -167,7 +196,21 @@ function renderOpen() {
   const fragment = document.createDocumentFragment();
   const maxVotes = Math.max(1, ...state.data.open.map((item) => item.votes));
   for (const item of items) fragment.append(createOpenRow(item, maxVotes));
-  if (items.length === 0) fragment.append(el('p', 'empty', 'No open suggestions match this search.'));
+  if (items.length === 0) {
+    const query = state.openQuery.trim();
+    const weeklyView = state.openSort === 'this-week';
+    fragment.append(createEmptyState({
+      title: query ? 'No suggestions found' : weeklyView ? 'Nothing new this week' : 'No open suggestions yet',
+      detail: query
+        ? `Nothing matched “${query}”. Try another word or clear the search.`
+        : weeklyView ? 'No suggestions arrived in the last seven days.' : 'There are no open suggestions to show yet.',
+      input: elements.openSearch,
+      clear: () => {
+        state.openQuery = '';
+        renderOpen();
+      },
+    }));
+  }
   elements.openList.replaceChildren(fragment);
   elements.openList.setAttribute('aria-busy', 'false');
   const suffix = state.openSort === 'this-week' ? ' from the last 7 days' : '';
@@ -207,7 +250,20 @@ function renderShipped() {
   const fragment = document.createDocumentFragment();
   const total = groups.reduce((sum, group) => sum + group.items.length, 0);
   for (const group of groups) fragment.append(createShippedGroup(group));
-  if (total === 0) fragment.append(el('p', 'empty', 'No shipped features match this search.'));
+  if (total === 0) {
+    const query = state.shippedQuery.trim();
+    fragment.append(createEmptyState({
+      title: 'No shipped features found',
+      detail: query
+        ? `Nothing matched “${query}”. Try another word or clear the search.`
+        : 'No shipped features match this view yet.',
+      input: elements.shippedSearch,
+      clear: () => {
+        state.shippedQuery = '';
+        renderShipped();
+      },
+    }));
+  }
   elements.shippedList.replaceChildren(fragment);
   elements.shippedList.setAttribute('aria-busy', 'false');
   elements.shippedResultCount.textContent = plural(total, 'shipped feature');
@@ -276,6 +332,7 @@ async function load() {
     elements.freshness.textContent = formatFreshness(state.data.generated_at);
     elements.freshness.dateTime = state.data.generated_at;
     elements.freshness.title = new Date(state.data.generated_at).toLocaleString('en', { dateStyle: 'long', timeStyle: 'short' });
+    renderContext();
     renderOpen();
     renderShipped();
   } catch (error) {
