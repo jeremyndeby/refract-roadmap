@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-01T00:58:41.880Z",
+  "generated_at": "2026-08-01T01:03:48.279Z",
   "open": [
     {
       "id": "1532911614574067772",
       "title": "In Recent Activity, add a rewatch symbol under recently rewatched film/series like on Letterboxd",
       "excerpt": "I think it would be something useful to add.",
       "votes": 0,
-      "comments": 0,
+      "comments": 1,
       "created_at": "2026-08-01",
       "tags": [
         "Design",
@@ -224,7 +224,7 @@
       "id": "1532883365504614400",
       "title": "Subbed lists suggestions",
       "excerpt": "Let’s say I am subscribed to a huge list but I can see that it’s missing something. It would be cool if I could either add it to my instance of the list but keep it subscribed so I can have it updated or to add a suggestion and maybe the…",
-      "votes": 0,
+      "votes": 1,
       "comments": 0,
       "created_at": "2026-07-31",
       "tags": [
@@ -237,7 +237,7 @@
       "id": "1532898086513279137",
       "title": "Embed trailers",
       "excerpt": "Embed trailer videos right into the app, so you don't have to exit the platform to watch the trailer.",
-      "votes": 0,
+      "votes": 2,
       "comments": 0,
       "created_at": "2026-07-31",
       "tags": [],
@@ -248,7 +248,7 @@
       "id": "1532898584024973443",
       "title": "Add pull-to-refresh on profile view",
       "excerpt": "Add the ability to pull down on profile view to refresh it. Currently it's not possible",
-      "votes": 0,
+      "votes": 1,
       "comments": 0,
       "created_at": "2026-07-31",
       "tags": [],
@@ -281,7 +281,7 @@
       "id": "1532898767961854135",
       "title": "Add multiple photos to bug reports",
       "excerpt": "The ability to add more than one photo when submitting a bug report.",
-      "votes": 0,
+      "votes": 1,
       "comments": 0,
       "created_at": "2026-07-31",
       "tags": [],
@@ -8597,7 +8597,7 @@
       "id": "1490876351429738629",
       "title": "iPad optimised app",
       "excerpt": "i dont know if im the only one but i tend to have an android phone + iPad combo constantly so that i have access to both device types and operating systems with minimum budget spend. would be really useful if the app made use of all the…",
-      "votes": 24,
+      "votes": 0,
       "comments": 5,
       "created_at": "2026-04-07",
       "tags": [
@@ -8610,7 +8610,7 @@
       "id": "1490913433758077088",
       "title": "Vote for favorite character in a tv show or movie",
       "excerpt": "idk if a lot of people use this feature but one thing I love on tv time is being able to vote for your favourite character in series or movies with a ranking that shows up in our account (same place as the top actors / directors maybe?)…",
-      "votes": 121,
+      "votes": 3,
       "comments": 7,
       "created_at": "2026-04-07",
       "tags": [
@@ -8625,7 +8625,7 @@
       "id": "1490917406011424881",
       "title": "Set preferred starting page",
       "excerpt": "Allow to set to default continue watching (or possibly other options for others). For me when I launch the app, I want to see up front what I need to watch next.",
-      "votes": 14,
+      "votes": 1,
       "comments": 11,
       "created_at": "2026-04-07",
       "tags": [
@@ -8652,7 +8652,7 @@
       "id": "1490960422692716655",
       "title": "Less click to mark a new episode as watched",
       "excerpt": "Another thing I really liked about TV Time was that it let you mark episodes you’d watched right when you opened the app, without having to navigate through various sections. Perhaps moving the ‘Watch List’ and ‘Watch Next’ (to use TV…",
-      "votes": 8,
+      "votes": 0,
       "comments": 5,
       "created_at": "2026-04-07",
       "tags": [
@@ -8666,7 +8666,7 @@
       "id": "1490970349859508424",
       "title": "Changing account email",
       "excerpt": "The option to change your account email address, perhaps via a confirmation link sent to the new one. In the future, it may be necessary to change the email address for whatever reason, and I don’t think there’s currently a way to do so.",
-      "votes": 25,
+      "votes": 0,
       "comments": 5,
       "created_at": "2026-04-07",
       "tags": [
@@ -8680,7 +8680,7 @@
       "id": "1491041069851476028",
       "title": "Syncing with MAL and Anilist",
       "excerpt": "i watch a lot of TV including anime, but the anime community has its own tracking sites. i hate having to mark stuff on TWO sites though. it would be great if when I watchlist or mark an episode etc of an anime on here, it could update my…",
-      "votes": 10,
+      "votes": 0,
       "comments": 81,
       "created_at": "2026-04-07",
       "tags": [
@@ -8694,7 +8694,7 @@
       "id": "1491043199010078751",
       "title": "Syncing with Letterboxd",
       "excerpt": "i know you allow for a Letterboxd import right now, but since Letterboxd is a pretty massive community, I still maintain a presence there. much like with the MAL/Anilist suggestion, having syncing between Refract and Letterboxd would be…",
-      "votes": 9,
+      "votes": 0,
       "comments": 1,
       "created_at": "2026-04-07",
       "tags": [
@@ -8708,7 +8708,7 @@
       "id": "1491045027026173972",
       "title": "The ability to see other people's library",
       "excerpt": "I am anilist and Mal user and there we are able to see other people's entire library (which they have made public) before following them. This helps as I can see before sending a request if the other person and I have similar tastes. What…",
-      "votes": 9,
+      "votes": 0,
       "comments": 4,
       "created_at": "2026-04-07",
       "tags": [
@@ -8722,7 +8722,7 @@
       "id": "1491048380233941194",
       "title": "Social & Info Links on Actor Profiles",
       "excerpt": "A feature that adds actors’ and actresses’ social media and info links would be a great addition. Having direct links to their Instagram, Wikipedia, and official IMDb pages would make profiles far more useful and save users the stress of…",
-      "votes": 6,
+      "votes": 0,
       "comments": 0,
       "created_at": "2026-04-07",
       "tags": [
@@ -8736,7 +8736,7 @@
       "id": "1491070356658585752",
       "title": "Does a website is on the roadmap ?",
       "excerpt": "I personally trakt a lot of my stuff on computer (not always on mobile) Could you think of the possibility of a web site? This one thing tvtime user lost a long time ago (I mean now it’s an horrendous web app) Idk if a lot of people would…",
-      "votes": 128,
+      "votes": 0,
       "comments": 42,
       "created_at": "2026-04-07",
       "tags": [
@@ -8749,7 +8749,7 @@
       "id": "1491094361641975879",
       "title": "filter/sorting by streaming services",
       "excerpt": "I’ve always wished for a feature like this on TV Time 🥹 It would be great if you could add a filter for streaming platforms, so we can see only the shows/movies available on a specific service in our watchlist. Would love this so much,…",
-      "votes": 55,
+      "votes": 5,
       "comments": 7,
       "created_at": "2026-04-07",
       "tags": [
