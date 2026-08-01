@@ -1,4 +1,4 @@
-import { groupShipped, isThisWeek, selectOpen } from './roadmap-logic.mjs';
+import { groupShipped, isHot, isThisWeek, selectOpen } from './roadmap-logic.mjs';
 
 const state = {
   data: null,
@@ -70,7 +70,41 @@ function chipClass(tag) {
   const value = tag.toLocaleLowerCase('en');
   if (value === 'new this week') return 'chip new';
   if (value.includes('progress')) return 'chip progress';
+  if (value === '🔥 hot') return 'chip hot';
   return 'chip';
+}
+
+function formatTrend(item) {
+  const trend = item.votes_7d;
+  if (!trend) {
+    return {
+      className: 'trend unknown',
+      text: '—',
+      label: '7-day change not available yet',
+    };
+  }
+  const percent = trend.percent === null
+    ? 'new'
+    : `${Math.abs(trend.percent).toLocaleString('en', { maximumFractionDigits: 1 })}%`;
+  if (trend.delta > 0) {
+    return {
+      className: 'trend positive',
+      text: `↗ +${trend.delta} · ${percent}`,
+      label: `Gained ${trend.delta} votes in 7 days, ${percent}`,
+    };
+  }
+  if (trend.delta < 0) {
+    return {
+      className: 'trend negative',
+      text: `↘ ${trend.delta} · ${percent}`,
+      label: `Lost ${Math.abs(trend.delta)} votes in 7 days, ${percent}`,
+    };
+  }
+  return {
+    className: 'trend zero',
+    text: '0 · 0%',
+    label: 'No vote change in 7 days',
+  };
 }
 
 function createOpenRow(item, maxVotes) {
@@ -85,6 +119,10 @@ function createOpenRow(item, maxVotes) {
   fill.style.width = `${Math.max(0, Math.min(100, (item.votes / maxVotes) * 100))}%`;
   prism.append(fill);
   voteBlock.append(prism);
+  const trendData = formatTrend(item);
+  const trend = el('span', trendData.className, trendData.text);
+  trend.setAttribute('aria-label', trendData.label);
+  voteBlock.append(trend);
 
   const body = el('div', 'body');
   const heading = el('h2');
@@ -109,6 +147,7 @@ function createOpenRow(item, maxVotes) {
 
   const chips = el('div', 'chips');
   const labels = [];
+  if (isHot(item)) labels.push('🔥 Hot');
   if (isThisWeek(item, state.data.generated_at)) labels.push('New this week');
   for (const tag of item.tags) {
     if (tag !== 'From App' && !labels.includes(tag)) labels.push(tag);
