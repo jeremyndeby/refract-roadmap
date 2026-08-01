@@ -30,13 +30,19 @@
       </div>
       <p class="lede">
         Everything the community has asked for. Browse it here, vote on Discord.
-        Anything with a note from the team means we’ve looked at it and there’s
-        something worth knowing.
       </p>
-      <p class="priority-note">
+      <button
+        class="mobile-voting-toggle"
+        id="mobile-voting-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="voting-explanation"
+      >ⓘ How voting works</button>
+      <p class="priority-note mobile-collapsed" id="voting-explanation">
         Votes drive priority, but not strictly the order: we weigh them against effort
         and what's technically ready. Some big things need groundwork first, and quick
-        wins ship in between. 🚧 In progress = actively being built.
+        wins ship in between. 🚧 In progress = actively being built. 📋 Planned = on our
+        list, needs more groundwork first.
       </p>
 
       <section class="pulse" aria-label="Roadmap activity">
@@ -80,19 +86,20 @@
     <main>
       <section id="view-open" role="tabpanel" aria-labelledby="tab-open">
         <div class="toolbar open-toolbar">
-          <div class="sort-line">
-            <span class="toolbar-label">Sort</span>
-            <div class="sorts" role="group" aria-label="Sort open suggestions">
-              <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity</button>
-              <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Trending</button>
-              <button class="sort" data-open-sort="newest" aria-pressed="false">Newest</button>
-              <button class="sort" data-open-sort="oldest" aria-pressed="false">Oldest</button>
+          <div class="toolbar-main">
+            <div class="sort-line">
+              <span class="toolbar-label">Sort</span>
+              <div class="sorts" role="group" aria-label="Sort open suggestions">
+                <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+                <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Trending ↓</button>
+                <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+              </div>
+              <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
             </div>
-            <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
-          </div>
-          <div class="search-line">
-            <label class="sr-only" for="open-search">Search open suggestions</label>
-            <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
+            <div class="search-line">
+              <label class="sr-only" for="open-search">Search open suggestions</label>
+              <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
+            </div>
           </div>
           <div class="filter-groups">
             <div class="filter-group">
@@ -101,9 +108,30 @@
             </div>
             <div class="filter-group">
               <span class="toolbar-label">Tags</span>
-              <div class="filters" id="tag-filters" role="group" aria-label="Filter suggestions by tag"></div>
+              <div class="filters tag-filter-list" id="tag-filters" role="group" aria-label="Filter suggestions by tag"></div>
             </div>
           </div>
+        </div>
+        <div id="toolbar-sentinel" aria-hidden="true"></div>
+        <div class="sticky-toolbar" id="sticky-toolbar" aria-label="Sticky roadmap controls">
+          <div class="sorts compact-sorts" role="group" aria-label="Sticky sort controls">
+            <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓</button>
+            <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+          </div>
+          <div class="sticky-active-filters" id="sticky-active-filters"></div>
+          <button class="sticky-clear" id="sticky-clear" type="button" hidden>Clear</button>
+          <button class="icon-button" id="sticky-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="sticky-search">Search open suggestions</label>
+          <input class="search sticky-search" id="sticky-search" type="search" autocomplete="off" hidden>
+        </div>
+        <div class="mobile-toolbar" id="mobile-toolbar" aria-label="Mobile roadmap controls">
+          <button class="mobile-filter-button" id="mobile-filter-open" type="button" aria-haspopup="dialog" aria-controls="filter-sheet">
+            ⇅ Sort &amp; Filter <span id="mobile-filter-count">· 0</span>
+          </button>
+          <button class="icon-button" id="mobile-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="mobile-search">Search open suggestions</label>
+          <input class="search mobile-search" id="mobile-search" type="search" autocomplete="off" hidden>
         </div>
         <p class="result-count" id="open-result-count" aria-live="polite"></p>
         <div class="list" id="open-list" aria-busy="true">
@@ -124,6 +152,33 @@
         <div class="list shipped-list" id="shipped-list" aria-busy="true"></div>
       </section>
     </main>
+
+    <div class="sheet-backdrop" id="filter-sheet" hidden>
+      <section class="filter-sheet" role="dialog" aria-modal="true" aria-labelledby="filter-sheet-title">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 id="filter-sheet-title">Sort &amp; Filter</h2>
+          <button class="sheet-close" id="filter-sheet-close" type="button" aria-label="Close filters">×</button>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Sort by</span>
+          <div class="sorts sheet-sorts" role="group" aria-label="Mobile sort controls">
+            <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓</button>
+            <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+          </div>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Activity</span>
+          <div class="filters sheet-filters" id="sheet-activity-filters" role="group" aria-label="Mobile activity filters"></div>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Tags</span>
+          <div class="filters sheet-filters" id="sheet-tag-filters" role="group" aria-label="Mobile tag filters"></div>
+        </div>
+        <button class="sheet-apply" id="filter-sheet-apply" type="button">Show suggestions</button>
+      </section>
+    </div>
 
     <aside class="discord-cta" aria-labelledby="discord-cta-title">
       <div>

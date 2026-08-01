@@ -1,8 +1,6 @@
 export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
-export const CONTROVERSIAL_MIN_VOTES = 5;
 export const CONTROVERSIAL_MIN_DOWNVOTES = 3;
-export const CONTROVERSIAL_DOWNVOTES_ONLY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function titleOrder(a, b) {
@@ -19,6 +17,10 @@ function requesters(item) {
 
 function delta(item) {
   return Number.isInteger(item.votes_7d?.delta) ? item.votes_7d.delta : null;
+}
+
+function createdAt(item) {
+  return typeof item.created_at === 'string' ? item.created_at : '';
 }
 
 export function isHot(item, threshold = HOT_DELTA_THRESHOLD) {
@@ -43,16 +45,19 @@ export function isWithinDays(item, generatedAt, days) {
 export const isLast7Days = (item, generatedAt) => isWithinDays(item, generatedAt, 7);
 export const isLast30Days = (item, generatedAt) => isWithinDays(item, generatedAt, 30);
 
-export function controversialScore(item) {
-  const up = votes(item);
-  const down = Number.isFinite(item.downvotes) ? item.downvotes : 0;
-  if (!(
-    (up >= CONTROVERSIAL_MIN_VOTES && down >= CONTROVERSIAL_MIN_DOWNVOTES) ||
-    down >= CONTROVERSIAL_DOWNVOTES_ONLY
-  )) return null;
-  const total = up + down;
-  const balance = 1 - Math.abs(up - down) / total;
-  return balance * Math.log2(total + 1);
+export function tagBaseName(tag) {
+  return String(tag ?? '')
+    .replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, '')
+    .trim();
+}
+
+export function hasStatus(item, status) {
+  const expected = String(status).toLocaleLowerCase('en');
+  return item.tags.some((tag) => tagBaseName(tag).toLocaleLowerCase('en') === expected);
+}
+
+export function isControversial(item) {
+  return (Number.isFinite(item.downvotes) ? item.downvotes : 0) >= CONTROVERSIAL_MIN_DOWNVOTES;
 }
 
 export function roadmapContext({ open = [], shipped = [], generated_at: generatedAt } = {}) {
@@ -96,28 +101,37 @@ export function deliveryBadge(item) {
 export function selectOpen(items, {
   query = '',
   sort = 'popularity',
+  direction = 'desc',
+  controversialOrder = false,
   generatedAt,
   filters = [],
 } = {}) {
   const active = new Set(filters);
   let selected = items.filter((item) => includesQuery(item, query, true));
   selected = selected.filter((item) => {
-    if (active.has('controversial') && controversialScore(item) === null) return false;
+    if (active.has('controversial') && !isControversial(item)) return false;
     if (active.has('needs-love') && votes(item) !== 0) return false;
     if (active.has('last-7-days') && !isLast7Days(item, generatedAt)) return false;
     if (active.has('last-30-days') && !isLast30Days(item, generatedAt)) return false;
     for (const filter of active) {
+      if (filter.startsWith('status:') && !hasStatus(item, filter.slice(7))) return false;
       if (!filter.startsWith('tag:')) continue;
       if (!item.tags.includes(filter.slice(4))) return false;
     }
     return true;
   });
   return [...selected].sort((a, b) => {
-    if (sort === 'oldest') {
-      return a.created_at.localeCompare(b.created_at) || titleOrder(a, b);
+    if (controversialOrder) {
+      return (b.downvotes ?? 0) - (a.downvotes ?? 0) ||
+        votes(b) - votes(a) ||
+        createdAt(b).localeCompare(createdAt(a)) ||
+        titleOrder(a, b);
     }
-    if (sort === 'newest') {
-      return b.created_at.localeCompare(a.created_at) || votes(b) - votes(a) || titleOrder(a, b);
+    if (sort === 'date') {
+      const dateOrder = createdAt(a).localeCompare(createdAt(b));
+      return (direction === 'asc' ? dateOrder : -dateOrder) ||
+        (direction === 'asc' ? votes(a) - votes(b) : votes(b) - votes(a)) ||
+        titleOrder(a, b);
     }
     if (sort === 'hottest') {
       const aDelta = delta(a);
@@ -125,13 +139,16 @@ export function selectOpen(items, {
       if (aDelta === null && bDelta !== null) return 1;
       if (aDelta !== null && bDelta === null) return -1;
       if (aDelta === null && bDelta === null) {
-        return b.created_at.localeCompare(a.created_at) || titleOrder(a, b);
+        return createdAt(b).localeCompare(createdAt(a)) || titleOrder(a, b);
       }
-      return (bDelta ?? 0) - (aDelta ?? 0) ||
-        (b.votes_7d?.percent ?? -Infinity) - (a.votes_7d?.percent ?? -Infinity) ||
-        votes(b) - votes(a) || titleOrder(a, b);
+      const hotOrder = (aDelta ?? 0) - (bDelta ?? 0) ||
+        (a.votes_7d?.percent ?? -Infinity) - (b.votes_7d?.percent ?? -Infinity) ||
+        votes(a) - votes(b);
+      return (direction === 'asc' ? hotOrder : -hotOrder) || titleOrder(a, b);
     }
-    return votes(b) - votes(a) || b.created_at.localeCompare(a.created_at) || titleOrder(a, b);
+    const popularityOrder = votes(a) - votes(b) ||
+      createdAt(a).localeCompare(createdAt(b));
+    return (direction === 'asc' ? popularityOrder : -popularityOrder) || titleOrder(a, b);
   });
 }
 
