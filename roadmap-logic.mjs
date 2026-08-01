@@ -1,5 +1,7 @@
 export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
+export const CONTROVERSIAL_MIN_VOTES = 5;
+export const CONTROVERSIAL_MIN_DOWNVOTES = 3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DISCORD_EPOCH_MS = 1_420_070_400_000n;
 
@@ -37,6 +39,20 @@ export function isThisWeek(item, generatedAt) {
   if (!Number.isFinite(created) || !Number.isFinite(generated)) return false;
   const sevenDays = 7 * 24 * 60 * 60 * 1000;
   return created <= generated && created >= generated - sevenDays;
+}
+
+export function isThisMonth(item, generatedAt) {
+  const month = /^\d{4}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
+  return Boolean(month && String(item.created_at ?? '').startsWith(month));
+}
+
+export function controversialScore(item) {
+  const up = votes(item);
+  const down = Number.isFinite(item.downvotes) ? item.downvotes : 0;
+  if (up < CONTROVERSIAL_MIN_VOTES || down < CONTROVERSIAL_MIN_DOWNVOTES) return null;
+  const total = up + down;
+  const balance = 1 - Math.abs(up - down) / total;
+  return balance * Math.log2(total + 1);
 }
 
 export function roadmapContext({ open = [], shipped = [], generated_at: generatedAt } = {}) {
@@ -94,16 +110,31 @@ export function deliveryBadge(item) {
   return null;
 }
 
-export function selectOpen(items, { query = '', sort = 'most-wanted', generatedAt } = {}) {
+export function selectOpen(items, {
+  query = '',
+  sort = 'popularity',
+  generatedAt,
+  filters = [],
+} = {}) {
+  const active = new Set(filters);
   let selected = items.filter((item) => includesQuery(item, query, true));
-  if (sort === 'this-week') {
-    selected = selected.filter((item) => isThisWeek(item, generatedAt));
+  selected = selected.filter((item) => {
+    if (active.has('new-this-week') && !isThisWeek(item, generatedAt)) return false;
+    if (active.has('new-this-month') && !isThisMonth(item, generatedAt)) return false;
+    for (const filter of active) {
+      if (!filter.startsWith('tag:')) continue;
+      if (!item.tags.includes(filter.slice(4))) return false;
+    }
+    return true;
+  });
+  if (sort === 'controversial') {
+    selected = selected.filter((item) => controversialScore(item) !== null);
   }
   return [...selected].sort((a, b) => {
     if (sort === 'oldest') {
       return a.created_at.localeCompare(b.created_at) || titleOrder(a, b);
     }
-    if (sort === 'newest' || sort === 'this-week') {
+    if (sort === 'newest') {
       return b.created_at.localeCompare(a.created_at) || votes(b) - votes(a) || titleOrder(a, b);
     }
     if (sort === 'hottest') {
@@ -117,6 +148,10 @@ export function selectOpen(items, { query = '', sort = 'most-wanted', generatedA
       return (bDelta ?? 0) - (aDelta ?? 0) ||
         (b.votes_7d?.percent ?? -Infinity) - (a.votes_7d?.percent ?? -Infinity) ||
         votes(b) - votes(a) || titleOrder(a, b);
+    }
+    if (sort === 'controversial') {
+      return controversialScore(b) - controversialScore(a) ||
+        (b.downvotes ?? 0) - (a.downvotes ?? 0) || votes(b) - votes(a) || titleOrder(a, b);
     }
     return votes(b) - votes(a) || b.created_at.localeCompare(a.created_at) || titleOrder(a, b);
   });

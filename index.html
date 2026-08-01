@@ -28,18 +28,11 @@
           <span class="brand-kicker">Built with the community</span>
         </div>
       </div>
-      <div class="lede-row">
-        <p class="lede">
-          Everything the community has asked for. Browse it here, vote on Discord.
-          Anything with a note from the team means we’ve looked at it and there’s
-          something worth knowing.
-        </p>
-        <p class="discord-nudge">
-          <span>Voting happens on Discord</span>
-          <span aria-hidden="true">→</span>
-          <a href="https://discord.gg/zkdc9yw93x" target="_blank" rel="noreferrer">Join us</a>
-        </p>
-      </div>
+      <p class="lede">
+        Everything the community has asked for. Browse it here, vote on Discord.
+        Anything with a note from the team means we’ve looked at it and there’s
+        something worth knowing.
+      </p>
 
       <section class="pulse" aria-label="Roadmap activity">
         <div class="pulse-intro">
@@ -47,13 +40,20 @@
           <p>A quick look at what just shipped and what arrived.</p>
         </div>
         <dl class="pulse-stats" aria-live="polite">
-          <div>
-            <dt>shipped this month</dt>
-            <dd id="shipped-this-month">—</dd>
+          <div class="pulse-stat pulse-stat-primary">
+            <dt>new this month</dt>
+            <dd id="new-this-month">—</dd>
+            <span class="period-delta" id="new-this-month-delta">—</span>
           </div>
-          <div>
+          <div class="pulse-stat pulse-stat-compact">
             <dt>new this week</dt>
             <dd id="new-this-week">—</dd>
+            <span class="period-delta" id="new-this-week-delta">—</span>
+          </div>
+          <div class="pulse-stat">
+            <dt>shipped this month</dt>
+            <dd id="shipped-this-month">—</dd>
+            <span class="period-delta" id="shipped-this-month-delta">—</span>
           </div>
         </dl>
         <a class="report-link" href="https://discord.com/channels/1490347491151970366/1490873391086047252" target="_blank" rel="noreferrer">
@@ -74,17 +74,23 @@
 
     <main>
       <section id="view-open" role="tabpanel" aria-labelledby="tab-open">
-        <div class="toolbar">
-          <label class="sr-only" for="open-search">Search open suggestions</label>
-          <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
-          <div class="sorts" role="group" aria-label="Sort open suggestions">
-            <button class="sort" data-open-sort="most-wanted" aria-pressed="true">Most wanted</button>
-            <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Hottest</button>
-            <button class="sort" data-open-sort="newest" aria-pressed="false">Newest</button>
-            <button class="sort" data-open-sort="oldest" aria-pressed="false">Oldest</button>
-            <button class="sort" data-open-sort="this-week" aria-pressed="false">This week</button>
+        <div class="toolbar open-toolbar">
+          <div class="sort-line">
+            <span class="toolbar-label">Sort</span>
+            <div class="sorts" role="group" aria-label="Sort open suggestions">
+              <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity</button>
+              <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Hottest</button>
+              <button class="sort" data-open-sort="controversial" aria-pressed="false">⚡ Controversial</button>
+              <button class="sort" data-open-sort="newest" aria-pressed="false">Newest</button>
+              <button class="sort" data-open-sort="oldest" aria-pressed="false">Oldest</button>
+            </div>
+            <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
           </div>
-          <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
+          <div class="filter-line">
+            <label class="sr-only" for="open-search">Search open suggestions</label>
+            <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
+            <div class="filters" id="open-filters" role="group" aria-label="Filter open suggestions"></div>
+          </div>
         </div>
         <p class="result-count" id="open-result-count" aria-live="polite"></p>
         <div class="list" id="open-list" aria-busy="true">
