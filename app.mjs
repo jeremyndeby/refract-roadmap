@@ -186,7 +186,7 @@ const TAG_COLORS = Object.freeze({
   Planned: '#B2BEC3',
   Profile: '#55EFC4',
   Settings: '#D6A2E8',
-  Social: '#81ECEC',
+  Social: '#00CEC9',
   Stats: '#FAB1A0',
   'TV Shows': { accent: '#E17055', text: '#FFC2AE' },
 });
