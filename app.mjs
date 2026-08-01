@@ -1,4 +1,5 @@
 import {
+  deliveryBadge,
   groupShipped,
   isHot,
   isThisWeek,
@@ -39,6 +40,8 @@ const elements = {
   shippedResultCount: document.querySelector('#shipped-result-count'),
   openList: document.querySelector('#open-list'),
   shippedList: document.querySelector('#shipped-list'),
+  hottestSort: document.querySelector('[data-open-sort="hottest"]'),
+  hottestAvailability: document.querySelector('#hottest-availability'),
   tabs: [...document.querySelectorAll('[role="tab"]')],
   panels: {
     open: document.querySelector('#view-open'),
@@ -73,6 +76,7 @@ function hydrateRoadmap(data) {
   const tagNames = Array.isArray(data.tag_names) ? data.tag_names : [];
   return {
     generated_at: data.generated_at,
+    trends_ready: data.trends_ready === true,
     open: data.open.map((item) => ({
       ...item,
       comments: item.comments ?? 0,
@@ -91,6 +95,14 @@ function hydrateRoadmap(data) {
       url: discordThreadUrl(item.id),
     })),
   };
+}
+
+function configureHottest() {
+  const enabled = state.data.trends_ready;
+  elements.hottestSort.disabled = !enabled;
+  elements.hottestSort.setAttribute('aria-disabled', String(!enabled));
+  elements.hottestAvailability.hidden = enabled;
+  if (!enabled && state.openSort === 'hottest') state.openSort = 'most-wanted';
 }
 
 function scheduleIdle(callback) {
@@ -324,6 +336,12 @@ function createShippedGroup(group) {
     const row = el('div', 'shipped-row');
     const title = el('div', 'title');
     title.append(link(item.url, item.title));
+    const badge = deliveryBadge(item);
+    if (badge) {
+      const badgeNode = el('span', `delivery-badge ${badge.kind}`, badge.label);
+      badgeNode.title = `${badge.days} days from suggestion to release`;
+      title.append(badgeNode);
+    }
     row.append(title);
     if (Number.isInteger(item.requested_by) && item.requested_by > 0) {
       row.append(el('div', 'requesters', `asked by ${item.requested_by.toLocaleString('en')}`));
@@ -398,6 +416,7 @@ function wireControls() {
   });
   for (const button of document.querySelectorAll('[data-open-sort]')) {
     button.addEventListener('click', () => {
+      if (button.disabled) return;
       state.openSort = button.dataset.openSort;
       for (const peer of document.querySelectorAll('[data-open-sort]')) {
         peer.setAttribute('aria-pressed', String(peer === button));
@@ -426,6 +445,7 @@ async function load() {
     const jsonText = await response.text();
     const jsonDownloaded = performance.now();
     state.data = hydrateRoadmap(JSON.parse(jsonText));
+    configureHottest();
     const jsonParsed = performance.now();
     performance.measure('roadmap-json-download', { start: jsonStarted, end: jsonDownloaded });
     performance.measure('roadmap-json-parse', { start: jsonDownloaded, end: jsonParsed });

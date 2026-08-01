@@ -1,6 +1,7 @@
 export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DISCORD_EPOCH_MS = 1_420_070_400_000n;
 
 function titleOrder(a, b) {
   return a.title.localeCompare(b.title, 'en', { sensitivity: 'base' });
@@ -68,6 +69,31 @@ export function relativeAge(value, reference = new Date()) {
   return new Intl.RelativeTimeFormat('en', { numeric: 'always' }).format(-amount, unit);
 }
 
+function discordCreatedDay(id) {
+  if (!/^\d+$/.test(String(id ?? ''))) return null;
+  try {
+    const timestamp = Number((BigInt(id) >> 22n) + DISCORD_EPOCH_MS);
+    const created = new Date(timestamp);
+    if (!Number.isFinite(created.getTime())) return null;
+    return Date.UTC(created.getUTCFullYear(), created.getUTCMonth(), created.getUTCDate());
+  } catch {
+    return null;
+  }
+}
+
+export function deliveryBadge(item) {
+  const created = discordCreatedDay(item?.id);
+  const released = /^\d{4}-\d{2}-\d{2}$/.test(String(item?.released_at ?? ''))
+    ? Date.parse(`${item.released_at}T00:00:00Z`)
+    : NaN;
+  if (created === null || !Number.isFinite(released) || released < created) return null;
+
+  const days = Math.round((released - created) / DAY_MS);
+  if (days < 14) return { kind: 'express', label: '⚡ Express', days };
+  if (days > 90) return { kind: 'long-haul', label: '🏆 Long haul', days };
+  return null;
+}
+
 export function selectOpen(items, { query = '', sort = 'most-wanted', generatedAt } = {}) {
   let selected = items.filter((item) => includesQuery(item, query, true));
   if (sort === 'this-week') {
@@ -85,6 +111,9 @@ export function selectOpen(items, { query = '', sort = 'most-wanted', generatedA
       const bDelta = delta(b);
       if (aDelta === null && bDelta !== null) return 1;
       if (aDelta !== null && bDelta === null) return -1;
+      if (aDelta === null && bDelta === null) {
+        return b.created_at.localeCompare(a.created_at) || titleOrder(a, b);
+      }
       return (bDelta ?? 0) - (aDelta ?? 0) ||
         (b.votes_7d?.percent ?? -Infinity) - (a.votes_7d?.percent ?? -Infinity) ||
         votes(b) - votes(a) || titleOrder(a, b);
