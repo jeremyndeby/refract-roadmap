@@ -7,6 +7,11 @@ import {
   selectOpen,
 } from './roadmap-logic.mjs';
 
+const DISCORD_GUILD_ID = '1490347491151970366';
+const INITIAL_OPEN_ROWS = 50;
+const OPEN_BATCH_SIZE = 50;
+let openRenderVersion = 0;
+
 const state = {
   data: null,
   view: location.hash === '#shipped' ? 'shipped' : 'open',
@@ -14,7 +19,13 @@ const state = {
   shippedQuery: '',
   openSort: 'most-wanted',
   shippedSort: 'by-month',
+  openRendered: false,
+  shippedRendered: false,
 };
+
+document.fonts?.ready.then(() => {
+  performance.measure('roadmap-fonts-ready', { start: 0, end: performance.now() });
+});
 
 const elements = {
   freshness: document.querySelector('#freshness'),
@@ -52,6 +63,42 @@ function link(url, text) {
 
 function plural(value, singular, pluralForm = `${singular}s`) {
   return `${value.toLocaleString('en')} ${value === 1 ? singular : pluralForm}`;
+}
+
+function discordThreadUrl(id) {
+  return `https://discord.com/channels/${DISCORD_GUILD_ID}/${id}`;
+}
+
+function hydrateRoadmap(data) {
+  const tagNames = Array.isArray(data.tag_names) ? data.tag_names : [];
+  return {
+    generated_at: data.generated_at,
+    open: data.open.map((item) => ({
+      ...item,
+      comments: item.comments ?? 0,
+      created_at: item.posted,
+      downvotes: item.downvotes ?? 0,
+      tags: item.tags.map((index) => tagNames[index]).filter(Boolean),
+      url: discordThreadUrl(item.id),
+      votes_7d: Object.hasOwn(item, 'trend')
+        ? item.trend === null ? null : { delta: item.trend[0], percent: item.trend[1] }
+        : data.trends_ready ? { delta: 0, percent: 0 } : null,
+    })),
+    shipped: data.shipped.map((item) => ({
+      ...item,
+      month: item.released_at?.slice(0, 7) ?? null,
+      released_at: item.released_at ?? null,
+      url: discordThreadUrl(item.id),
+    })),
+  };
+}
+
+function scheduleIdle(callback) {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(callback, { timeout: 120 });
+  } else {
+    setTimeout(() => callback({ timeRemaining: () => 0 }), 0);
+  }
 }
 
 function formatDay(value) {
@@ -195,15 +242,17 @@ function createEmptyState({ title, detail, input, clear }) {
 }
 
 function renderOpen() {
+  const renderStarted = performance.now();
+  const version = ++openRenderVersion;
+  state.openRendered = false;
   const items = selectOpen(state.data.open, {
     query: state.openQuery,
     sort: state.openSort,
     generatedAt: state.data.generated_at,
   });
-  const fragment = document.createDocumentFragment();
   const maxVotes = Math.max(1, ...state.data.open.map((item) => item.votes));
-  for (const item of items) fragment.append(createOpenRow(item, maxVotes));
   if (items.length === 0) {
+    const fragment = document.createDocumentFragment();
     const query = state.openQuery.trim();
     const weeklyView = state.openSort === 'this-week';
     fragment.append(createEmptyState({
@@ -217,11 +266,46 @@ function renderOpen() {
         renderOpen();
       },
     }));
+    elements.openList.replaceChildren(fragment);
+    elements.openList.setAttribute('aria-busy', 'false');
+    state.openRendered = true;
+  } else {
+    const initial = document.createDocumentFragment();
+    const initialEnd = Math.min(INITIAL_OPEN_ROWS, items.length);
+    for (let index = 0; index < initialEnd; index++) {
+      initial.append(createOpenRow(items[index], maxVotes));
+    }
+    elements.openList.replaceChildren(initial);
+    elements.openList.setAttribute('aria-busy', String(initialEnd < items.length));
+
+    let cursor = initialEnd;
+    const appendBatch = () => {
+      if (version !== openRenderVersion) return;
+      const fragment = document.createDocumentFragment();
+      const end = Math.min(cursor + OPEN_BATCH_SIZE, items.length);
+      for (; cursor < end; cursor++) fragment.append(createOpenRow(items[cursor], maxVotes));
+      elements.openList.append(fragment);
+      if (cursor < items.length) {
+        scheduleIdle(appendBatch);
+      } else {
+        elements.openList.setAttribute('aria-busy', 'false');
+        state.openRendered = true;
+        if (!performance.getEntriesByName('roadmap-render-open-complete').length) {
+          performance.measure('roadmap-render-open-complete', {
+            start: renderStarted,
+            end: performance.now(),
+          });
+        }
+      }
+    };
+    if (cursor < items.length) scheduleIdle(appendBatch);
+    else state.openRendered = true;
   }
-  elements.openList.replaceChildren(fragment);
-  elements.openList.setAttribute('aria-busy', 'false');
   const suffix = state.openSort === 'this-week' ? ' from the last 7 days' : '';
   elements.openResultCount.textContent = `${plural(items.length, 'suggestion')}${suffix}`;
+  if (!performance.getEntriesByName('roadmap-render-open').length) {
+    performance.measure('roadmap-render-open', { start: renderStarted, end: performance.now() });
+  }
 }
 
 function createShippedGroup(group) {
@@ -250,6 +334,7 @@ function createShippedGroup(group) {
 }
 
 function renderShipped() {
+  const renderStarted = performance.now();
   const groups = groupShipped(state.data.shipped, {
     query: state.shippedQuery,
     sort: state.shippedSort,
@@ -274,6 +359,10 @@ function renderShipped() {
   elements.shippedList.replaceChildren(fragment);
   elements.shippedList.setAttribute('aria-busy', 'false');
   elements.shippedResultCount.textContent = plural(total, 'shipped feature');
+  state.shippedRendered = true;
+  if (!performance.getEntriesByName('roadmap-render-shipped').length) {
+    performance.measure('roadmap-render-shipped', { start: renderStarted, end: performance.now() });
+  }
 }
 
 function showView(view, { focus = false } = {}) {
@@ -285,6 +374,8 @@ function showView(view, { focus = false } = {}) {
     if (selected && focus) tab.focus();
   }
   for (const [name, panel] of Object.entries(elements.panels)) panel.hidden = name !== view;
+  if (state.data && view === 'open' && !state.openRendered) renderOpen();
+  if (state.data && view === 'shipped' && !state.shippedRendered) renderShipped();
   history.replaceState(null, '', view === 'shipped' ? '#shipped' : location.pathname + location.search);
 }
 
@@ -329,9 +420,15 @@ async function load() {
   wireControls();
   showView(state.view);
   try {
+    const jsonStarted = performance.now();
     const response = await fetch('./roadmap.json', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state.data = await response.json();
+    const jsonText = await response.text();
+    const jsonDownloaded = performance.now();
+    state.data = hydrateRoadmap(JSON.parse(jsonText));
+    const jsonParsed = performance.now();
+    performance.measure('roadmap-json-download', { start: jsonStarted, end: jsonDownloaded });
+    performance.measure('roadmap-json-parse', { start: jsonDownloaded, end: jsonParsed });
     elements.openCount.textContent = state.data.open.length.toLocaleString('en');
     elements.shippedCount.textContent = state.data.shipped.length.toLocaleString('en');
     elements.openSearch.placeholder = `Search ${state.data.open.length.toLocaleString('en')} suggestions…`;
@@ -339,9 +436,11 @@ async function load() {
     elements.freshness.textContent = formatFreshness(state.data.generated_at);
     elements.freshness.dateTime = state.data.generated_at;
     elements.freshness.title = new Date(state.data.generated_at).toLocaleString('en', { dateStyle: 'long', timeStyle: 'short' });
+    const renderStarted = performance.now();
     renderContext();
-    renderOpen();
-    renderShipped();
+    if (state.view === 'shipped') renderShipped();
+    else renderOpen();
+    performance.measure('roadmap-render-total', { start: renderStarted, end: performance.now() });
   } catch (error) {
     console.error(error);
     const message = el('p', 'error', 'The roadmap could not be loaded. Please try again in a moment.');
