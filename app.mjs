@@ -2,8 +2,8 @@ import {
   deliveryBadge,
   groupShipped,
   isHot,
-  isThisMonth,
-  isThisWeek,
+  isLast30Days,
+  isLast7Days,
   relativeAge,
   roadmapContext,
   selectOpen,
@@ -12,6 +12,7 @@ import {
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
 const OPEN_BATCH_SIZE = 50;
+const IN_PROGRESS_TAG = 'In Progress';
 let openRenderVersion = 0;
 
 const state = {
@@ -32,12 +33,14 @@ document.fonts?.ready.then(() => {
 
 const elements = {
   freshness: document.querySelector('#freshness'),
-  shippedThisMonth: document.querySelector('#shipped-this-month'),
-  shippedThisMonthDelta: document.querySelector('#shipped-this-month-delta'),
-  newThisMonth: document.querySelector('#new-this-month'),
-  newThisMonthDelta: document.querySelector('#new-this-month-delta'),
-  newThisWeek: document.querySelector('#new-this-week'),
-  newThisWeekDelta: document.querySelector('#new-this-week-delta'),
+  shippedLast30Days: document.querySelector('#shipped-last-30-days'),
+  shippedLast30DaysDelta: document.querySelector('#shipped-last-30-days-delta'),
+  newLast30Days: document.querySelector('#new-last-30-days'),
+  newLast30DaysDelta: document.querySelector('#new-last-30-days-delta'),
+  newLast7Days: document.querySelector('#new-last-7-days'),
+  newLast7DaysDelta: document.querySelector('#new-last-7-days-delta'),
+  pulseOpenTotal: document.querySelector('#pulse-open-total'),
+  pulseShippedTotal: document.querySelector('#pulse-shipped-total'),
   openCount: document.querySelector('#open-count'),
   shippedCount: document.querySelector('#shipped-count'),
   openSearch: document.querySelector('#open-search'),
@@ -48,7 +51,8 @@ const elements = {
   shippedList: document.querySelector('#shipped-list'),
   hottestSort: document.querySelector('[data-open-sort="hottest"]'),
   hottestAvailability: document.querySelector('#hottest-availability'),
-  openFilters: document.querySelector('#open-filters'),
+  activityFilters: document.querySelector('#activity-filters'),
+  tagFilters: document.querySelector('#tag-filters'),
   tabs: [...document.querySelectorAll('[role="tab"]')],
   panels: {
     open: document.querySelector('#view-open'),
@@ -101,9 +105,13 @@ function hydrateRoadmap(data) {
     })),
     shipped: data.shipped.map((item) => ({
       ...item,
+      comments: item.comments ?? 0,
+      created_at: item.posted ?? null,
+      reactions: item.reactions ?? [],
+      tags: item.tags.map((index) => tagNames[index]).filter(Boolean),
       month: item.released_at?.slice(0, 7) ?? null,
       released_at: item.released_at ?? null,
-      url: discordThreadUrl(item.id),
+      url: item.discord_alive === true ? discordThreadUrl(item.id) : null,
     })),
   };
 }
@@ -148,13 +156,31 @@ function formatFreshness(value) {
 function renderContext() {
   const fallback = roadmapContext(state.data);
   const periods = state.data.periods ?? {
-    new_this_week: { value: fallback.newThisWeek, delta: { ready: false } },
-    new_this_month: { value: 0, delta: { ready: false } },
-    shipped_this_month: { value: fallback.shippedThisMonth, delta: { ready: false } },
+    new_last_7_days: { value: fallback.newLast7Days, delta: { ready: false } },
+    new_last_30_days: { value: fallback.newLast30Days, delta: { ready: false } },
+    shipped_last_30_days: { value: fallback.shippedLast30Days, delta: { ready: false } },
   };
-  renderPeriodMetric(periods.new_this_month, elements.newThisMonth, elements.newThisMonthDelta);
-  renderPeriodMetric(periods.new_this_week, elements.newThisWeek, elements.newThisWeekDelta);
-  renderPeriodMetric(periods.shipped_this_month, elements.shippedThisMonth, elements.shippedThisMonthDelta);
+  elements.pulseOpenTotal.textContent = plural(state.data.open.length, 'suggestion');
+  elements.pulseShippedTotal.textContent = plural(
+    state.data.shipped.length,
+    'shipped',
+    'shipped',
+  );
+  renderPeriodMetric(
+    periods.new_last_30_days,
+    elements.newLast30Days,
+    elements.newLast30DaysDelta,
+  );
+  renderPeriodMetric(
+    periods.new_last_7_days,
+    elements.newLast7Days,
+    elements.newLast7DaysDelta,
+  );
+  renderPeriodMetric(
+    periods.shipped_last_30_days,
+    elements.shippedLast30Days,
+    elements.shippedLast30DaysDelta,
+  );
 }
 
 function renderPeriodMetric(metric, valueNode, deltaNode) {
@@ -183,6 +209,7 @@ const TAG_COLORS = Object.freeze({
   'Import / Export': '#81ECEC',
   Movies: { accent: '#0984E3', text: '#A8D8FF' },
   Notifications: '#FDCB6E',
+  'In Progress': '#FDCB6E',
   Planned: '#B2BEC3',
   Profile: '#55EFC4',
   Settings: '#D6A2E8',
@@ -200,6 +227,7 @@ function setChipColor(node, color) {
   const text = typeof color === 'string' ? color : color.text;
   node.style.setProperty('--chip-color', accent);
   node.style.setProperty('--chip-text', text);
+  node.style.setProperty('--chip-selected', text);
 }
 
 function formatTrend(item) {
@@ -282,8 +310,11 @@ function reactionEmoji(emoji) {
   return image;
 }
 
-function createReactionRow(item) {
-  if (item.reactions.length === 0 && item.comments === 0) return null;
+function createReactionRow(item, { commentsEnabled = true } = {}) {
+  const age = item.created_at ? relativeAge(item.created_at, state.data.generated_at) : '';
+  if (item.reactions.length === 0 && (!commentsEnabled || item.comments === 0) && !age) {
+    return null;
+  }
   const row = el('div', 'reaction-row');
   for (const reaction of item.reactions) {
     const pill = el('span', 'reaction-pill');
@@ -291,13 +322,14 @@ function createReactionRow(item) {
     pill.append(reactionEmoji(reaction.emoji), el('span', '', reaction.count.toLocaleString('en')));
     row.append(pill);
   }
-  if (item.comments > 0) {
+  if (commentsEnabled && item.comments > 0 && item.url) {
     const comments = link(item.url, `💬 ${item.comments.toLocaleString('en')}`);
     comments.className = 'comment-pill';
     comments.setAttribute('aria-label', `${plural(item.comments, 'comment')}; open the Discord thread`);
     comments.dataset.externalHint = '↗';
     row.append(comments);
   }
+  if (age) row.append(el('span', 'relative-age', `· ${age}`));
   return row;
 }
 
@@ -310,10 +342,14 @@ function rankMark(rank) {
 
 function createOpenRow(item, maxVotes, rank) {
   const popularity = state.openSort === 'popularity';
+  const inProgress = item.tags.includes(IN_PROGRESS_TAG);
   const classes = ['row'];
   if (popularity && rank === 1) classes.push('rank-first');
   else if (popularity && rank <= 3) classes.push('rank-top3');
-  else if (popularity && rank <= 10) classes.push('rank-top10');
+  else {
+    if (popularity && rank <= 10) classes.push('rank-top10');
+    if (inProgress) classes.push('in-progress');
+  }
   const article = el('article', classes.join(' '));
   if (popularity) article.dataset.rank = String(rank);
 
@@ -343,10 +379,7 @@ function createOpenRow(item, maxVotes, rank) {
   body.append(heading, el('p', '', item.excerpt));
 
   const meta = el('div', 'meta');
-  meta.append(el('span', '', `posted ${formatDay(item.created_at)} · ${relativeAge(item.created_at)}`));
-  const discordLink = link(item.url, 'Vote on Discord ↗');
-  discordLink.className = 'vote';
-  meta.append(discordLink);
+  meta.append(el('span', '', `posted ${formatDay(item.created_at)}`));
   body.append(meta);
 
   if (item.note) {
@@ -359,14 +392,23 @@ function createOpenRow(item, maxVotes, rank) {
   if (reactionRow) body.append(reactionRow);
 
   const chips = el('div', 'chips');
+  const discordLink = link(item.url, 'Vote on Discord ↗');
+  discordLink.className = 'chip card-action';
+  chips.append(discordLink);
   if (isHot(item)) chips.append(el('span', 'chip hot', '🔥 Hot'));
-  if (isThisWeek(item, state.data.generated_at)) {
-    chips.append(createFilterChip('New this week', 'new-this-week', '#55EFC4', 'new'));
-  } else if (isThisMonth(item, state.data.generated_at)) {
-    chips.append(createFilterChip('New this month', 'new-this-month', '#55EFC4', 'new'));
+  if (isLast7Days(item, state.data.generated_at)) {
+    chips.append(createFilterChip('Last 7 days', 'last-7-days', '#55EFC4', 'new'));
+  } else if (isLast30Days(item, state.data.generated_at)) {
+    chips.append(createFilterChip('Last 30 days', 'last-30-days', '#55EFC4', 'new'));
   }
-  for (const tag of item.tags) {
-    if (tag !== 'From App') chips.append(createFilterChip(tag, `tag:${tag}`, tagColor(tag)));
+  const orderedTags = [...item.tags].sort((a, b) =>
+    Number(b === IN_PROGRESS_TAG) - Number(a === IN_PROGRESS_TAG),
+  );
+  for (const tag of orderedTags) {
+    if (tag === 'From App') continue;
+    const label = tag === IN_PROGRESS_TAG ? '🚧 In Progress' : tag;
+    const className = tag === IN_PROGRESS_TAG ? 'in-progress-chip' : '';
+    chips.append(createFilterChip(label, `tag:${tag}`, tagColor(tag), className));
   }
 
   article.append(voteBlock, body, chips);
@@ -461,7 +503,70 @@ function renderOpen() {
   }
 }
 
-function createShippedGroup(group) {
+function createShippedRow(item, maxVotes) {
+  const article = el('article', `row shipped-card${item.discord_alive ? '' : ' archived-card'}`);
+  const votes = Number.isInteger(item.requested_by) ? item.requested_by : 0;
+  const voteBlock = el('div', 'votes');
+  voteBlock.setAttribute('aria-label', plural(votes, 'request'));
+  const voteNumber = el('div', 'n');
+  voteNumber.append(
+    el('span', '', votes.toLocaleString('en')),
+    el('span', 'vote-heart', '💜'),
+  );
+  const prism = el('div', 'prism');
+  prism.setAttribute('aria-hidden', 'true');
+  const fill = el('i');
+  fill.style.width = `${Math.max(0, Math.min(100, (votes / maxVotes) * 100))}%`;
+  prism.append(fill);
+  voteBlock.append(voteNumber, prism);
+
+  const body = el('div', 'body');
+  const heading = el('h2');
+  if (item.discord_alive && item.url) heading.append(link(item.url, item.title));
+  else heading.append(el('span', '', item.title));
+  body.append(heading, el('p', '', item.excerpt));
+
+  const meta = el('div', 'meta');
+  if (item.created_at) meta.append(el('span', '', `posted ${formatDay(item.created_at)}`));
+  if (item.released_at) meta.append(el('span', '', `shipped ${formatDay(item.released_at)}`));
+  if (meta.childNodes.length > 0) body.append(meta);
+
+  if (item.note) {
+    const note = el('aside', 'note');
+    note.append(el('span', 'who', 'From the team'), el('p', '', item.note));
+    body.append(note);
+  }
+
+  const reactionRow = createReactionRow(item, { commentsEnabled: item.discord_alive });
+  if (reactionRow) body.append(reactionRow);
+
+  const chips = el('div', 'chips');
+  if (item.discord_alive && item.url) {
+    const discordLink = link(item.url, 'Vote on Discord ↗');
+    discordLink.className = 'chip card-action shipped-action';
+    chips.append(discordLink);
+  } else {
+    chips.append(el('span', 'chip archived-chip', '📦 Archived'));
+  }
+  const badge = deliveryBadge(item);
+  if (badge) {
+    const className = badge.kind === 'neutral'
+      ? 'delivery-time neutral'
+      : `delivery-badge ${badge.kind}`;
+    const badgeNode = el('span', className, badge.label);
+    badgeNode.title = `${badge.days} days from suggestion to release`;
+    chips.append(badgeNode);
+  }
+  for (const tag of item.tags) {
+    const chip = el('span', 'chip', tag);
+    setChipColor(chip, tagColor(tag));
+    chips.append(chip);
+  }
+  article.append(voteBlock, body, chips);
+  return article;
+}
+
+function createShippedGroup(group, maxVotes) {
   const section = el('section', `release${group.earlier ? ' earlier' : ''}`);
   section.setAttribute('aria-labelledby', `release-${group.key.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`);
   const heading = el('h2', 'release-head');
@@ -473,22 +578,7 @@ function createShippedGroup(group) {
   heading.append(label, el('span', 'detail', detail));
   section.append(heading);
 
-  for (const item of group.items) {
-    const row = el('div', 'shipped-row');
-    const title = el('div', 'title');
-    title.append(link(item.url, item.title));
-    const badge = deliveryBadge(item);
-    if (badge) {
-      const badgeNode = el('span', `delivery-badge ${badge.kind}`, badge.label);
-      badgeNode.title = `${badge.days} days from suggestion to release`;
-      title.append(badgeNode);
-    }
-    row.append(title);
-    if (Number.isInteger(item.requested_by) && item.requested_by > 0) {
-      row.append(el('div', 'requesters', `asked by ${item.requested_by.toLocaleString('en')}`));
-    }
-    section.append(row);
-  }
+  for (const item of group.items) section.append(createShippedRow(item, maxVotes));
   return section;
 }
 
@@ -500,7 +590,8 @@ function renderShipped() {
   });
   const fragment = document.createDocumentFragment();
   const total = groups.reduce((sum, group) => sum + group.items.length, 0);
-  for (const group of groups) fragment.append(createShippedGroup(group));
+  const maxVotes = Math.max(1, ...state.data.shipped.map((item) => item.requested_by ?? 0));
+  for (const group of groups) fragment.append(createShippedGroup(group, maxVotes));
   if (total === 0) {
     const query = state.shippedQuery.trim();
     fragment.append(createEmptyState({
@@ -525,15 +616,30 @@ function renderShipped() {
 }
 
 function configureFilters() {
-  const fragment = document.createDocumentFragment();
-  fragment.append(
-    createFilterChip('New this week', 'new-this-week', '#55EFC4', 'new'),
-    createFilterChip('New this month', 'new-this-month', '#55EFC4', 'new'),
+  const activity = document.createDocumentFragment();
+  activity.append(
+    createFilterChip(
+      '⚡ Controversial',
+      'controversial',
+      { accent: '#FF6B6B', text: '#FFB3B3' },
+    ),
+    createFilterChip(
+      '💜 Needs love',
+      'needs-love',
+      { accent: '#6C5CE7', text: '#C8C4FF' },
+    ),
+    createFilterChip('🆕 Last 7 days', 'last-7-days', '#55EFC4', 'new'),
+    createFilterChip('🆕 Last 30 days', 'last-30-days', '#55EFC4', 'new'),
+    createFilterChip('🚧 In progress', 'tag:In Progress', '#FDCB6E', 'in-progress-chip'),
   );
+  elements.activityFilters.replaceChildren(activity);
+
+  const tags = document.createDocumentFragment();
   for (const tag of state.data.tag_names) {
-    fragment.append(createFilterChip(tag, `tag:${tag}`, tagColor(tag)));
+    if (tag === IN_PROGRESS_TAG) continue;
+    tags.append(createFilterChip(tag, `tag:${tag}`, tagColor(tag)));
   }
-  elements.openFilters.replaceChildren(fragment);
+  elements.tagFilters.replaceChildren(tags);
   syncFilterButtons();
 }
 
@@ -544,8 +650,10 @@ async function loadDeferredReactions(file) {
   const payload = await response.json();
   const reactions = payload?.reactions ?? {};
   for (const item of state.data.open) item.reactions = reactions[item.id] ?? [];
+  for (const item of state.data.shipped) item.reactions = reactions[item.id] ?? [];
   performance.measure('roadmap-reactions-load', { start: started, end: performance.now() });
   if (state.view === 'open') renderOpen();
+  else renderShipped();
 }
 
 function showView(view, { focus = false } = {}) {

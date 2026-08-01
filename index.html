@@ -33,34 +33,39 @@
         Anything with a note from the team means we’ve looked at it and there’s
         something worth knowing.
       </p>
+      <p class="priority-note">
+        Votes drive priority, but not strictly the order: we weigh them against effort
+        and what's technically ready. Some big things need groundwork first, and quick
+        wins ship in between. 🚧 In progress = actively being built.
+      </p>
 
       <section class="pulse" aria-label="Roadmap activity">
-        <div class="pulse-intro">
-          <span class="pulse-kicker">Community pulse</span>
-          <p>A quick look at what just shipped and what arrived.</p>
+        <div class="pulse-totals" aria-label="Roadmap totals">
+          <strong id="pulse-open-total">— suggestions</strong>
+          <span aria-hidden="true">·</span>
+          <strong id="pulse-shipped-total">— shipped</strong>
         </div>
         <dl class="pulse-stats" aria-live="polite">
-          <div class="pulse-stat pulse-stat-primary">
-            <dt>new this month</dt>
-            <dd id="new-this-month">—</dd>
-            <span class="period-delta" id="new-this-month-delta">—</span>
-          </div>
-          <div class="pulse-stat pulse-stat-compact">
-            <dt>new this week</dt>
-            <dd id="new-this-week">—</dd>
-            <span class="period-delta" id="new-this-week-delta">—</span>
+          <div class="pulse-stat">
+            <dt>new · last 7 days</dt>
+            <dd id="new-last-7-days">—</dd>
+            <span class="period-delta" id="new-last-7-days-delta">—</span>
           </div>
           <div class="pulse-stat">
-            <dt>shipped this month</dt>
-            <dd id="shipped-this-month">—</dd>
-            <span class="period-delta" id="shipped-this-month-delta">—</span>
+            <dt>new · last 30 days</dt>
+            <dd id="new-last-30-days">—</dd>
+            <span class="period-delta" id="new-last-30-days-delta">—</span>
+          </div>
+          <div class="pulse-stat">
+            <dt>shipped · last 30 days</dt>
+            <dd id="shipped-last-30-days">—</dd>
+            <span class="period-delta" id="shipped-last-30-days-delta">—</span>
           </div>
         </dl>
-        <a class="report-link" href="https://discord.com/channels/1490347491151970366/1490873391086047252" target="_blank" rel="noreferrer">
-          <span>Does something look wrong?</span>
-          Tell us on Discord <span aria-hidden="true">↗</span>
-        </a>
       </section>
+      <a class="idea-link" href="https://discord.com/channels/1490347491151970366/1490873391086047252" target="_blank" rel="noreferrer">
+        Have an idea? Suggest it on Discord <span aria-hidden="true">→</span>
+      </a>
 
       <nav class="tabs" role="tablist" aria-label="Roadmap views">
         <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">
@@ -79,17 +84,25 @@
             <span class="toolbar-label">Sort</span>
             <div class="sorts" role="group" aria-label="Sort open suggestions">
               <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity</button>
-              <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Hottest</button>
-              <button class="sort" data-open-sort="controversial" aria-pressed="false">⚡ Controversial</button>
+              <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Trending</button>
               <button class="sort" data-open-sort="newest" aria-pressed="false">Newest</button>
               <button class="sort" data-open-sort="oldest" aria-pressed="false">Oldest</button>
             </div>
             <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
           </div>
-          <div class="filter-line">
+          <div class="search-line">
             <label class="sr-only" for="open-search">Search open suggestions</label>
             <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
-            <div class="filters" id="open-filters" role="group" aria-label="Filter open suggestions"></div>
+          </div>
+          <div class="filter-groups">
+            <div class="filter-group">
+              <span class="toolbar-label">Activity</span>
+              <div class="filters" id="activity-filters" role="group" aria-label="Filter suggestions by activity"></div>
+            </div>
+            <div class="filter-group">
+              <span class="toolbar-label">Tags</span>
+              <div class="filters" id="tag-filters" role="group" aria-label="Filter suggestions by tag"></div>
+            </div>
           </div>
         </div>
         <p class="result-count" id="open-result-count" aria-live="polite"></p>

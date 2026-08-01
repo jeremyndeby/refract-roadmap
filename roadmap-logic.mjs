@@ -2,8 +2,8 @@ export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
 export const CONTROVERSIAL_MIN_VOTES = 5;
 export const CONTROVERSIAL_MIN_DOWNVOTES = 3;
+export const CONTROVERSIAL_DOWNVOTES_ONLY = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DISCORD_EPOCH_MS = 1_420_070_400_000n;
 
 function titleOrder(a, b) {
   return a.title.localeCompare(b.title, 'en', { sensitivity: 'base' });
@@ -33,33 +33,34 @@ function includesQuery(item, query, includeExcerpt = false) {
   return haystack.toLocaleLowerCase('en').includes(needle);
 }
 
-export function isThisWeek(item, generatedAt) {
+export function isWithinDays(item, generatedAt, days) {
   const created = Date.parse(`${item.created_at}T00:00:00Z`);
   const generated = Date.parse(generatedAt);
   if (!Number.isFinite(created) || !Number.isFinite(generated)) return false;
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-  return created <= generated && created >= generated - sevenDays;
+  return created <= generated && created >= generated - days * DAY_MS;
 }
 
-export function isThisMonth(item, generatedAt) {
-  const month = /^\d{4}-\d{2}/.exec(String(generatedAt ?? ''))?.[0];
-  return Boolean(month && String(item.created_at ?? '').startsWith(month));
-}
+export const isLast7Days = (item, generatedAt) => isWithinDays(item, generatedAt, 7);
+export const isLast30Days = (item, generatedAt) => isWithinDays(item, generatedAt, 30);
 
 export function controversialScore(item) {
   const up = votes(item);
   const down = Number.isFinite(item.downvotes) ? item.downvotes : 0;
-  if (up < CONTROVERSIAL_MIN_VOTES || down < CONTROVERSIAL_MIN_DOWNVOTES) return null;
+  if (!(
+    (up >= CONTROVERSIAL_MIN_VOTES && down >= CONTROVERSIAL_MIN_DOWNVOTES) ||
+    down >= CONTROVERSIAL_DOWNVOTES_ONLY
+  )) return null;
   const total = up + down;
   const balance = 1 - Math.abs(up - down) / total;
   return balance * Math.log2(total + 1);
 }
 
 export function roadmapContext({ open = [], shipped = [], generated_at: generatedAt } = {}) {
-  const currentMonth = /^\d{4}-\d{2}/.exec(String(generatedAt ?? ''))?.[0] ?? '';
   return {
-    shippedThisMonth: shipped.filter((item) => item.month === currentMonth).length,
-    newThisWeek: open.filter((item) => isThisWeek(item, generatedAt)).length,
+    newLast7Days: open.filter((item) => isLast7Days(item, generatedAt)).length,
+    newLast30Days: open.filter((item) => isLast30Days(item, generatedAt)).length,
+    shippedLast30Days: shipped.filter((item) =>
+      isWithinDays({ created_at: item.released_at }, generatedAt, 30)).length,
   };
 }
 
@@ -69,45 +70,27 @@ export function relativeAge(value, reference = new Date()) {
   if (!Number.isFinite(posted) || !Number.isFinite(now)) return '';
 
   const days = Math.max(0, Math.floor((now - posted) / DAY_MS));
-  let amount = days;
-  let unit = 'day';
-  if (days >= 730) {
-    amount = Math.floor(days / 365.25);
-    unit = 'year';
-  } else if (days >= 60) {
-    amount = Math.floor(days / 30.4375);
-    unit = 'month';
-  } else if (days >= 14) {
-    amount = Math.floor(days / 7);
-    unit = 'week';
-  }
-
-  return new Intl.RelativeTimeFormat('en', { numeric: 'always' }).format(-amount, unit);
-}
-
-function discordCreatedDay(id) {
-  if (!/^\d+$/.test(String(id ?? ''))) return null;
-  try {
-    const timestamp = Number((BigInt(id) >> 22n) + DISCORD_EPOCH_MS);
-    const created = new Date(timestamp);
-    if (!Number.isFinite(created.getTime())) return null;
-    return Date.UTC(created.getUTCFullYear(), created.getUTCMonth(), created.getUTCDate());
-  } catch {
-    return null;
-  }
+  if (days >= 730) return `${Math.floor(days / 365.25)}y ago`;
+  if (days >= 60) return `${Math.floor(days / 30.4375)}mo ago`;
+  if (days >= 14) return `${Math.floor(days / 7)}w ago`;
+  return `${days}d ago`;
 }
 
 export function deliveryBadge(item) {
-  const created = discordCreatedDay(item?.id);
+  const created = /^\d{4}-\d{2}-\d{2}$/.test(String(item?.created_at ?? ''))
+    ? Date.parse(`${item.created_at}T00:00:00Z`)
+    : NaN;
   const released = /^\d{4}-\d{2}-\d{2}$/.test(String(item?.released_at ?? ''))
     ? Date.parse(`${item.released_at}T00:00:00Z`)
     : NaN;
-  if (created === null || !Number.isFinite(released) || released < created) return null;
+  if (!Number.isFinite(created) || !Number.isFinite(released) || released < created) return null;
 
   const days = Math.round((released - created) / DAY_MS);
-  if (days < 14) return { kind: 'express', label: '⚡ Express', days };
-  if (days > 90) return { kind: 'long-haul', label: '🏆 Long haul', days };
-  return null;
+  if (days < 14) return { kind: 'express', label: `⚡ Shipped in ${days} days`, days };
+  if (days > 90) {
+    return { kind: 'worth-wait', label: `🧘 Worth the wait — ${days} days`, days };
+  }
+  return { kind: 'neutral', label: `Shipped in ${days} days`, days };
 }
 
 export function selectOpen(items, {
@@ -119,17 +102,16 @@ export function selectOpen(items, {
   const active = new Set(filters);
   let selected = items.filter((item) => includesQuery(item, query, true));
   selected = selected.filter((item) => {
-    if (active.has('new-this-week') && !isThisWeek(item, generatedAt)) return false;
-    if (active.has('new-this-month') && !isThisMonth(item, generatedAt)) return false;
+    if (active.has('controversial') && controversialScore(item) === null) return false;
+    if (active.has('needs-love') && votes(item) !== 0) return false;
+    if (active.has('last-7-days') && !isLast7Days(item, generatedAt)) return false;
+    if (active.has('last-30-days') && !isLast30Days(item, generatedAt)) return false;
     for (const filter of active) {
       if (!filter.startsWith('tag:')) continue;
       if (!item.tags.includes(filter.slice(4))) return false;
     }
     return true;
   });
-  if (sort === 'controversial') {
-    selected = selected.filter((item) => controversialScore(item) !== null);
-  }
   return [...selected].sort((a, b) => {
     if (sort === 'oldest') {
       return a.created_at.localeCompare(b.created_at) || titleOrder(a, b);
@@ -148,10 +130,6 @@ export function selectOpen(items, {
       return (bDelta ?? 0) - (aDelta ?? 0) ||
         (b.votes_7d?.percent ?? -Infinity) - (a.votes_7d?.percent ?? -Infinity) ||
         votes(b) - votes(a) || titleOrder(a, b);
-    }
-    if (sort === 'controversial') {
-      return controversialScore(b) - controversialScore(a) ||
-        (b.downvotes ?? 0) - (a.downvotes ?? 0) || votes(b) - votes(a) || titleOrder(a, b);
     }
     return votes(b) - votes(a) || b.created_at.localeCompare(a.created_at) || titleOrder(a, b);
   });
