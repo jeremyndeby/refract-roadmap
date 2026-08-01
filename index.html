@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#22282a">
+  <meta name="description" content="Browse the Refract community roadmap and vote for suggestions on Discord.">
+  <title>Refract — Roadmap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="spectrum" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="masthead">
+      <div class="brand">
+        <h1>Refract <span>Roadmap</span></h1>
+        <time class="freshness" id="freshness">loading…</time>
+      </div>
+      <p class="lede">
+        Everything the community has asked for. Browse it here, vote on Discord.
+        Anything with a note from the team means we’ve looked at it and there’s
+        something worth knowing.
+      </p>
+
+      <nav class="tabs" role="tablist" aria-label="Roadmap views">
+        <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">
+          Open <span class="count" id="open-count">—</span>
+        </button>
+        <button class="tab" id="tab-shipped" role="tab" aria-selected="false" aria-controls="view-shipped" data-view="shipped" tabindex="-1">
+          Shipped <span class="count" id="shipped-count">—</span>
+        </button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="view-open" role="tabpanel" aria-labelledby="tab-open">
+        <div class="toolbar">
+          <label class="sr-only" for="open-search">Search open suggestions</label>
+          <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
+          <div class="sorts" role="group" aria-label="Sort open suggestions">
+            <button class="sort" data-open-sort="most-wanted" aria-pressed="true">Most wanted</button>
+            <button class="sort" data-open-sort="newest" aria-pressed="false">Newest</button>
+            <button class="sort" data-open-sort="oldest" aria-pressed="false">Oldest</button>
+            <button class="sort" data-open-sort="this-week" aria-pressed="false">This week</button>
+          </div>
+        </div>
+        <p class="result-count" id="open-result-count" aria-live="polite"></p>
+        <div class="list" id="open-list" aria-busy="true">
+          <p class="loading">Loading the community roadmap…</p>
+        </div>
+      </section>
+
+      <section id="view-shipped" role="tabpanel" aria-labelledby="tab-shipped" hidden>
+        <div class="toolbar">
+          <label class="sr-only" for="shipped-search">Search shipped features</label>
+          <input class="search" id="shipped-search" type="search" autocomplete="off" placeholder="Search shipped features…">
+          <div class="sorts" role="group" aria-label="Sort shipped features">
+            <button class="sort" data-shipped-sort="by-month" aria-pressed="true">By month</button>
+            <button class="sort" data-shipped-sort="most-wanted" aria-pressed="false">Most wanted</button>
+          </div>
+        </div>
+        <p class="result-count" id="shipped-result-count" aria-live="polite"></p>
+        <div class="list shipped-list" id="shipped-list" aria-busy="true"></div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div>Counts come from reactions on Discord. Updated every 6 hours.</div>
+      <div class="stamp">
+        <a href="https://discord.com/channels/1490347491151970366/1490873391086047252">Discord</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://getrefract.app/">getrefract.app</a>
+      </div>
+    </footer>
+  </div>
+
+  <noscript>This page needs JavaScript to load and sort the roadmap.</noscript>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
