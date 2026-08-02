@@ -12,6 +12,10 @@ function votes(item) {
   return Number.isFinite(item.votes) ? item.votes : 0;
 }
 
+function downvotes(item) {
+  return Number.isFinite(item.downvotes) ? item.downvotes : 0;
+}
+
 function requesters(item) {
   return Number.isFinite(item.requested_by) ? item.requested_by : 0;
 }
@@ -64,6 +68,30 @@ export function startDiscordDeeplink({
       timer = null;
     },
   };
+}
+
+export function nextTeamNoteExpanded(expanded) {
+  return expanded !== true;
+}
+
+export function nextFilterSelection(current, filter, {
+  exclusiveValues = new Set(),
+  exclusivePrefixes = [],
+} = {}) {
+  const next = new Set(current);
+  if (next.delete(filter)) return next;
+
+  if (exclusiveValues.has(filter)) {
+    for (const value of exclusiveValues) next.delete(value);
+  }
+  for (const prefix of exclusivePrefixes) {
+    if (!filter.startsWith(prefix)) continue;
+    for (const value of next) {
+      if (value.startsWith(prefix)) next.delete(value);
+    }
+  }
+  next.add(filter);
+  return next;
 }
 
 export function resolveTabSwipe({
@@ -119,7 +147,7 @@ export function hasStatus(item, status) {
 }
 
 export function isControversial(item) {
-  return (Number.isFinite(item.downvotes) ? item.downvotes : 0) >= CONTROVERSIAL_MIN_DOWNVOTES;
+  return downvotes(item) >= CONTROVERSIAL_MIN_DOWNVOTES;
 }
 
 export function roadmapContext({ open = [], shipped = [], generated_at: generatedAt } = {}) {
@@ -184,7 +212,7 @@ export function selectOpen(items, {
   });
   return [...selected].sort((a, b) => {
     if (controversialOrder) {
-      return (b.downvotes ?? 0) - (a.downvotes ?? 0) ||
+      return downvotes(b) - downvotes(a) ||
         votes(b) - votes(a) ||
         createdAt(b).localeCompare(createdAt(a)) ||
         titleOrder(a, b);

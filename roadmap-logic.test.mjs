@@ -6,6 +6,8 @@ import {
   discordAppThreadUrl,
   globalPopularityRanks,
   groupShipped,
+  nextFilterSelection,
+  nextTeamNoteExpanded,
   resolveTabSwipe,
   selectOpen,
   selectShipped,
@@ -76,6 +78,49 @@ test('le rang Popularity reste global dans un sous-ensemble filtré', () => {
   assert.deepEqual(
     selectOpen(open, { sort: 'popularity', direction: 'asc' }).map((item) => ranks.get(item.id)),
     [3, 2, 1],
+  );
+  assert.deepEqual(
+    selectOpen(open, { sort: 'date', direction: 'desc' }).map((item) => ranks.get(item.id)),
+    [3, 2, 1],
+  );
+});
+
+test('la note équipe alterne sans fin dans les deux sens', () => {
+  let expanded = true;
+  const states = [];
+  for (let index = 0; index < 8; index++) {
+    expanded = nextTeamNoteExpanded(expanded);
+    states.push(expanded);
+  }
+  assert.deepEqual(states, [false, true, false, true, false, true, false, true]);
+});
+
+test('les tags sont exclusifs sans désactiver le filtre activité', () => {
+  let filters = new Set(['last-7-days', 'tag:Anime']);
+  filters = nextFilterSelection(filters, 'tag:Feature', {
+    exclusiveValues: new Set(['last-7-days', 'last-30-days']),
+    exclusivePrefixes: ['tag:'],
+  });
+  assert.deepEqual([...filters], ['last-7-days', 'tag:Feature']);
+  filters = nextFilterSelection(filters, 'tag:Feature', {
+    exclusiveValues: new Set(['last-7-days', 'last-30-days']),
+    exclusivePrefixes: ['tag:'],
+  });
+  assert.deepEqual([...filters], ['last-7-days']);
+});
+
+test('Controversial utilise exclusivement le champ downvotes et le trie décroissant', () => {
+  const open = [
+    { id: 'family-4', title: 'Family four', votes: 1, downvotes: 4, thumbs_down: 0, created_at: '2026-07-01', tags: [] },
+    { id: 'family-3', title: 'Family three', votes: 8, downvotes: 3, thumbs_down: 1, created_at: '2026-07-02', tags: [] },
+    { id: 'legacy-only', title: 'Legacy only', votes: 99, downvotes: 0, thumbs_down: 12, created_at: '2026-07-03', tags: [] },
+  ];
+  assert.deepEqual(
+    selectOpen(open, {
+      filters: ['controversial'],
+      controversialOrder: true,
+    }).map((item) => item.id),
+    ['family-4', 'family-3'],
   );
 });
 

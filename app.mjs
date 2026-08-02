@@ -5,6 +5,8 @@ import {
   globalPopularityRanks,
   groupShipped,
   hasStatus,
+  nextFilterSelection,
+  nextTeamNoteExpanded,
   relativeAge,
   roadmapContext,
   resolveTabSwipe,
@@ -12,7 +14,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=544bce0552a8';
+} from './roadmap-logic.mjs?v=2ea0ea9bcc0a';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -439,19 +441,16 @@ function syncFilterButtons() {
 
 function toggleFilter(filter, view = 'open') {
   const filters = filtersFor(view);
-  if (filters.has(filter)) {
-    filters.delete(filter);
-    if (view === 'open' && filter === 'controversial') state.controversialOrder = false;
-  } else {
-    const exclusive = view === 'open'
-      ? ACTIVITY_FILTERS
-      : new Set(['last-7-days', 'last-30-days']);
-    if (exclusive.has(filter)) {
-      for (const active of exclusive) filters.delete(active);
-      if (view === 'open') state.controversialOrder = filter === 'controversial';
-    }
-    filters.add(filter);
-  }
+  const exclusive = view === 'open'
+    ? ACTIVITY_FILTERS
+    : new Set(['last-7-days', 'last-30-days']);
+  const next = nextFilterSelection(filters, filter, {
+    exclusiveValues: exclusive,
+    exclusivePrefixes: ['tag:'],
+  });
+  filters.clear();
+  for (const value of next) filters.add(value);
+  if (view === 'open') state.controversialOrder = filters.has('controversial');
   syncFilterButtons();
   syncSortButtons();
   if (view === 'shipped') renderShipped();
@@ -675,7 +674,10 @@ function createTeamNote(text) {
   head.append(label, preview, toggle);
   note.append(head, copy);
 
-  const toggleNote = () => setTeamNoteExpanded(note, note.classList.contains('is-collapsed'));
+  const toggleNote = () => {
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    setTeamNoteExpanded(note, nextTeamNoteExpanded(expanded));
+  };
   toggle.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleNote();
@@ -695,23 +697,20 @@ function createTeamNote(text) {
 }
 
 function createOpenRow(item, rank) {
-  const popularity = state.openSort === 'popularity' && !state.controversialOrder;
   const inProgress = hasStatus(item, IN_PROGRESS_STATUS);
   const planned = hasStatus(item, PLANNED_STATUS);
   const classes = ['row'];
-  if (popularity && rank === 1) classes.push('rank-first');
-  else if (popularity && rank === 2) classes.push('rank-second');
-  else if (popularity && rank === 3) classes.push('rank-third');
+  if (rank === 1) classes.push('rank-first');
+  else if (rank === 2) classes.push('rank-second');
+  else if (rank === 3) classes.push('rank-third');
   else {
-    if (popularity && rank <= 10) classes.push('rank-top10');
+    if (rank <= 10) classes.push('rank-top10');
     if (inProgress) classes.push('in-progress');
     else if (planned) classes.push('planned');
   }
   const article = el('article', classes.join(' '));
-  if (popularity) {
-    article.dataset.rank = String(rank);
-    article.append(createRankBadge(rank, item));
-  }
+  article.dataset.rank = String(rank);
+  article.append(createRankBadge(rank, item));
   const status = inProgress ? IN_PROGRESS_STATUS : planned ? PLANNED_STATUS : null;
   if (status) {
     const badge = el(
