@@ -1,12 +1,18 @@
 import {
+  DISCORD_DEEPLINK_TIMEOUT_MS,
   deliveryBadge,
+  discordAppThreadUrl,
+  globalPopularityRanks,
   groupShipped,
   hasStatus,
   relativeAge,
   roadmapContext,
+  resolveTabSwipe,
   selectOpen,
+  shouldAttemptDiscordDeeplink,
+  startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs';
+} from './roadmap-logic.mjs?v=544bce0552a8';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -35,8 +41,13 @@ const state = {
   openDirection: 'desc',
   controversialOrder: false,
   openFilters: new Set(),
+  openGlobalRanks: new Map(),
+  openGlobalMaxVotes: 1,
   tagsExpanded: false,
-  shippedSort: 'by-month',
+  shippedSort: 'date',
+  shippedDirection: 'desc',
+  shippedFilters: new Set(),
+  shippedTagsExpanded: false,
   openRendered: false,
   shippedRendered: false,
 };
@@ -66,11 +77,14 @@ const elements = {
   openList: document.querySelector('#open-list'),
   shippedList: document.querySelector('#shipped-list'),
   hottestSort: document.querySelector('[data-open-sort="hottest"]'),
-  hottestAvailability: document.querySelector('#hottest-availability'),
   activityFilters: document.querySelector('#activity-filters'),
   tagFilters: document.querySelector('#tag-filters'),
+  shippedActivityFilters: document.querySelector('#shipped-activity-filters'),
+  shippedTagFilters: document.querySelector('#shipped-tag-filters'),
   sheetActivityFilters: document.querySelector('#sheet-activity-filters'),
   sheetTagFilters: document.querySelector('#sheet-tag-filters'),
+  sheetOpenSorts: document.querySelector('#sheet-open-sorts'),
+  sheetShippedSorts: document.querySelector('#sheet-shipped-sorts'),
   stickyToolbar: document.querySelector('#sticky-toolbar'),
   toolbarSentinel: document.querySelector('#toolbar-sentinel'),
   stickyActiveFilters: document.querySelector('#sticky-active-filters'),
@@ -82,9 +96,26 @@ const elements = {
   mobileFilterCount: document.querySelector('#mobile-filter-count'),
   mobileSearchToggle: document.querySelector('#mobile-search-toggle'),
   mobileSearch: document.querySelector('#mobile-search'),
+  shippedStickyToolbar: document.querySelector('#shipped-sticky-toolbar'),
+  shippedToolbarSentinel: document.querySelector('#shipped-toolbar-sentinel'),
+  shippedStickyActiveFilters: document.querySelector('#shipped-sticky-active-filters'),
+  shippedStickyClear: document.querySelector('#shipped-sticky-clear'),
+  shippedStickySearchToggle: document.querySelector('#shipped-sticky-search-toggle'),
+  shippedStickySearch: document.querySelector('#shipped-sticky-search'),
+  shippedMobileToolbar: document.querySelector('#shipped-mobile-toolbar'),
+  shippedMobileFilterOpen: document.querySelector('#shipped-mobile-filter-open'),
+  shippedMobileFilterCount: document.querySelector('#shipped-mobile-filter-count'),
+  shippedMobileSearchToggle: document.querySelector('#shipped-mobile-search-toggle'),
+  shippedMobileSearch: document.querySelector('#shipped-mobile-search'),
   filterSheet: document.querySelector('#filter-sheet'),
   filterSheetClose: document.querySelector('#filter-sheet-close'),
   filterSheetApply: document.querySelector('#filter-sheet-apply'),
+  filterSheetTitle: document.querySelector('#filter-sheet-title'),
+  backToTop: document.querySelector('#back-to-top'),
+  main: document.querySelector('#roadmap-main'),
+  tabList: document.querySelector('#roadmap-tabs'),
+  tabIndicator: document.querySelector('#tab-indicator'),
+  swipeHint: document.querySelector('#swipe-hint'),
   tabs: [...document.querySelectorAll('[role="tab"]')],
   panels: {
     open: document.querySelector('#view-open'),
@@ -132,8 +163,12 @@ function hydrateRoadmap(data) {
       tags: item.tags.map((index) => tagNames[index]).filter(Boolean),
       url: discordThreadUrl(item.id),
       votes_7d: Object.hasOwn(item, 'trend')
-        ? item.trend === null ? null : { delta: item.trend[0], percent: item.trend[1] }
-        : data.trends_ready ? { delta: 0, percent: 0 } : null,
+        ? item.trend === null ? null : {
+          delta: item.trend[0],
+          percent: item.trend[1],
+          rankDelta: Number.isInteger(item.trend[2]) ? item.trend[2] : null,
+        }
+        : data.trends_ready ? { delta: 0, percent: 0, rankDelta: null } : null,
     })),
     shipped: data.shipped.map((item) => ({
       ...item,
@@ -154,7 +189,6 @@ function configureHottest() {
     button.disabled = !enabled;
     button.setAttribute('aria-disabled', String(!enabled));
   }
-  elements.hottestAvailability.hidden = enabled;
   if (!enabled && state.openSort === 'hottest') {
     state.openSort = 'popularity';
     state.openDirection = 'desc';
@@ -162,8 +196,8 @@ function configureHottest() {
   syncSortButtons();
 }
 
-function sortLabel(sort) {
-  const arrow = state.openDirection === 'asc' ? '↑' : '↓';
+function sortLabel(sort, direction = state.openDirection) {
+  const arrow = direction === 'asc' ? '↑' : '↓';
   if (sort === 'hottest') return `🔥 Trending ${arrow}`;
   if (sort === 'date') return `Date ${arrow}`;
   return `Popularity ${arrow}`;
@@ -173,7 +207,14 @@ function syncSortButtons() {
   for (const button of document.querySelectorAll('[data-open-sort]')) {
     const selected = button.dataset.openSort === state.openSort && !state.controversialOrder;
     button.setAttribute('aria-pressed', String(selected));
-    button.textContent = sortLabel(button.dataset.openSort);
+    button.replaceChildren(sortLabel(button.dataset.openSort));
+    if (button.dataset.openSort === 'hottest' && !state.data?.trends_ready) {
+      button.append(el('span', 'soon-badge', 'SOON'));
+    }
+  }
+  for (const button of document.querySelectorAll('[data-shipped-sort]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.shippedSort === state.shippedSort));
+    button.textContent = sortLabel(button.dataset.shippedSort, state.shippedDirection);
   }
 }
 
@@ -191,6 +232,17 @@ function setOpenSort(sort) {
   syncSortButtons();
   syncFilterButtons();
   renderOpen();
+}
+
+function setShippedSort(sort) {
+  if (state.shippedSort === sort) {
+    state.shippedDirection = state.shippedDirection === 'desc' ? 'asc' : 'desc';
+  } else {
+    state.shippedSort = sort;
+    state.shippedDirection = 'desc';
+  }
+  syncSortButtons();
+  renderShipped();
 }
 
 function scheduleIdle(callback) {
@@ -313,70 +365,111 @@ function setChipColor(node, color) {
   node.style.setProperty('--chip-selected', text);
 }
 
+function filtersFor(view) {
+  return view === 'shipped' ? state.shippedFilters : state.openFilters;
+}
+
 function formatTrend(item) {
   const trend = item.votes_7d;
   if (!trend) {
     return {
       className: 'trend unknown',
-      text: '—',
+      delta: '—',
+      percent: '',
       label: '7-day change not available yet',
     };
   }
   const percent = trend.percent === null
     ? 'new'
-    : `${Math.abs(trend.percent).toLocaleString('en', { maximumFractionDigits: 1 })}%`;
+    : `${trend.percent > 0 ? '+' : ''}${trend.percent.toLocaleString('en', { maximumFractionDigits: 1 })}%`;
   if (trend.delta > 0) {
     return {
       className: 'trend positive',
-      text: `↗ +${trend.delta} · ${percent}`,
+      direction: 'up',
+      delta: `+${trend.delta}`,
+      percent,
       label: `Gained ${trend.delta} votes in 7 days, ${percent}`,
     };
   }
   if (trend.delta < 0) {
     return {
       className: 'trend negative',
-      text: `↘ ${trend.delta} · ${percent}`,
+      direction: 'down',
+      delta: String(trend.delta),
+      percent,
       label: `Lost ${Math.abs(trend.delta)} votes in 7 days, ${percent}`,
     };
   }
-  return {
-    className: 'trend zero',
-    text: '0 · 0%',
-    label: 'No vote change in 7 days',
-  };
+  return { className: 'trend zero', delta: '0', percent: '0%', label: 'No vote change in 7 days' };
+}
+
+function trendArrow(direction) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('trend-arrow', `trend-arrow-${direction}`);
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M2.25 12.5C4.4 6.25 8.1 3.5 13.5 3.5M10 1.5h3.5V5');
+  svg.append(path);
+  return svg;
+}
+
+function createVoteTrend(item) {
+  const formatted = formatTrend(item);
+  const node = el('span', formatted.className);
+  node.setAttribute('aria-label', formatted.label);
+  if (formatted.direction) node.append(trendArrow(formatted.direction));
+  node.append(el('span', 'trend-value', formatted.delta));
+  if (formatted.percent) {
+    node.append(
+      el('span', 'trend-separator', '·'),
+      el('span', 'trend-percent', formatted.percent),
+    );
+  }
+  return node;
 }
 
 function syncFilterButtons() {
-  for (const button of document.querySelectorAll('[data-open-filter]')) {
-    button.setAttribute('aria-pressed', String(state.openFilters.has(button.dataset.openFilter)));
+  for (const button of document.querySelectorAll('[data-roadmap-filter]')) {
+    const filters = filtersFor(button.dataset.filterView);
+    button.setAttribute('aria-pressed', String(filters.has(button.dataset.roadmapFilter)));
   }
   renderActiveFilterSummary();
 }
 
-function toggleFilter(filter) {
-  if (state.openFilters.has(filter)) {
-    state.openFilters.delete(filter);
-    if (filter === 'controversial') state.controversialOrder = false;
+function toggleFilter(filter, view = 'open') {
+  const filters = filtersFor(view);
+  if (filters.has(filter)) {
+    filters.delete(filter);
+    if (view === 'open' && filter === 'controversial') state.controversialOrder = false;
   } else {
-    if (ACTIVITY_FILTERS.has(filter)) {
-      for (const active of ACTIVITY_FILTERS) state.openFilters.delete(active);
-      state.controversialOrder = filter === 'controversial';
+    const exclusive = view === 'open'
+      ? ACTIVITY_FILTERS
+      : new Set(['last-7-days', 'last-30-days']);
+    if (exclusive.has(filter)) {
+      for (const active of exclusive) filters.delete(active);
+      if (view === 'open') state.controversialOrder = filter === 'controversial';
     }
-    state.openFilters.add(filter);
+    filters.add(filter);
   }
   syncFilterButtons();
   syncSortButtons();
-  renderOpen();
+  if (view === 'shipped') renderShipped();
+  else renderOpen();
 }
 
-function createFilterChip(label, filter, color, className = '', { activity = false } = {}) {
+function createFilterChip(label, filter, color, className = '', {
+  activity = false,
+  view = 'open',
+} = {}) {
   const button = el('button', `chip filter-chip ${className}`.trim(), label);
   button.type = 'button';
-  button.dataset.openFilter = filter;
+  button.dataset.roadmapFilter = filter;
+  button.dataset.filterView = view;
   if (activity) button.dataset.filterKind = 'activity';
-  button.setAttribute('aria-pressed', String(state.openFilters.has(filter)));
+  button.setAttribute('aria-pressed', String(filtersFor(view).has(filter)));
   if (color) setChipColor(button, color);
-  button.addEventListener('click', () => toggleFilter(filter));
+  button.addEventListener('click', () => toggleFilter(filter, view));
   return button;
 }
 
@@ -393,29 +486,25 @@ function filterLabel(filter) {
 }
 
 function renderActiveFilterSummary() {
-  const fragment = document.createDocumentFragment();
-  for (const filter of state.openFilters) {
-    const button = el('button', 'sticky-filter', `${filterLabel(filter)} ×`);
-    button.type = 'button';
-    button.dataset.removeFilter = filter;
-    button.addEventListener('click', () => toggleFilter(filter));
-    fragment.append(button);
+  for (const view of ['open', 'shipped']) {
+    const filters = filtersFor(view);
+    const fragment = document.createDocumentFragment();
+    for (const filter of filters) {
+      const button = el('button', 'sticky-filter', `${filterLabel(filter)} ×`);
+      button.type = 'button';
+      button.dataset.removeFilter = filter;
+      button.addEventListener('click', () => toggleFilter(filter, view));
+      fragment.append(button);
+    }
+    const summary = view === 'open'
+      ? elements.stickyActiveFilters
+      : elements.shippedStickyActiveFilters;
+    const clear = view === 'open' ? elements.stickyClear : elements.shippedStickyClear;
+    const count = view === 'open' ? elements.mobileFilterCount : elements.shippedMobileFilterCount;
+    summary.replaceChildren(fragment);
+    clear.hidden = filters.size === 0;
+    count.textContent = `· ${filters.size}`;
   }
-  elements.stickyActiveFilters.replaceChildren(fragment);
-  elements.stickyClear.hidden = state.openFilters.size === 0;
-  elements.mobileFilterCount.textContent = `· ${state.openFilters.size}`;
-}
-
-function reactionColor(emoji) {
-  const name = typeof emoji === 'string' ? emoji : emoji.name;
-  if (name === '💜' || name.toLocaleLowerCase('en') === 'refractlove') {
-    return { accent: '#6C5CE7', text: '#C8C4FF' };
-  }
-  if (name === '🔥') return '#FDCB6E';
-  if (/^(?:👎|⬇|downvote|thumbdown|thumbsdown)/iu.test(name)) {
-    return { accent: '#FF6B6B', text: '#FFB3B3' };
-  }
-  return typeof emoji === 'object' ? '#D6A2E8' : '#81ECEC';
 }
 
 function reactionEmoji(emoji) {
@@ -439,8 +528,9 @@ function createReactionRow(item, { commentsEnabled = true } = {}) {
   }
   const row = el('div', 'reaction-row');
   for (const reaction of item.reactions) {
-    const pill = el('span', 'reaction-pill');
-    setChipColor(pill, reactionColor(reaction.emoji));
+    const official = typeof reaction.emoji === 'string' && reaction.emoji === '💜';
+    const semantic = official ? 'primary' : reaction.negative === true ? 'negative' : 'positive';
+    const pill = el('span', `reaction-pill reaction-${semantic}`);
     pill.append(reactionEmoji(reaction.emoji), el('span', '', reaction.count.toLocaleString('en')));
     row.append(pill);
   }
@@ -449,6 +539,7 @@ function createReactionRow(item, { commentsEnabled = true } = {}) {
     comments.className = 'comment-pill';
     comments.setAttribute('aria-label', `${plural(item.comments, 'comment')}; open the Discord thread`);
     comments.dataset.externalHint = '↗';
+    comments.dataset.discordThreadId = item.id;
     row.append(comments);
   }
   if (age) row.append(el('span', 'relative-age', `· ${age}`));
@@ -478,10 +569,27 @@ function patchReactionSlots(container, items) {
 }
 
 function rankMark(rank) {
-  if (rank === 1) return '🥇 1';
-  if (rank === 2) return '🥈 2';
-  if (rank === 3) return '🥉 3';
-  return String(rank);
+  if (rank === 1) return '🥇 #1';
+  if (rank === 2) return '🥈 #2';
+  if (rank === 3) return '🥉 #3';
+  return `#${rank}`;
+}
+
+function createRankBadge(rank, item) {
+  const badge = el('span', `rank-badge rank-badge-${rank <= 3 ? rank : 'other'}`);
+  badge.append(el('span', 'rank-mark', rankMark(rank)));
+  const rankDelta = item.votes_7d?.rankDelta;
+  if (Number.isInteger(rankDelta) && rankDelta !== 0) {
+    badge.append(el(
+      'span',
+      `rank-movement ${rankDelta > 0 ? 'positive' : 'negative'}`,
+      `${rankDelta > 0 ? '▲' : '▼'}${Math.abs(rankDelta)}`,
+    ));
+  }
+  badge.setAttribute('aria-label', Number.isInteger(rankDelta) && rankDelta !== 0
+    ? `Popularity rank ${rank}, ${Math.abs(rankDelta)} places ${rankDelta > 0 ? 'gained' : 'lost'} in 7 days`
+    : `Popularity rank ${rank}`);
+  return badge;
 }
 
 function queueDescriptionMeasurement(description, copy, toggle = null) {
@@ -522,9 +630,72 @@ function createDescription(text, { expandable = true } = {}) {
   return description;
 }
 
-function createOpenRow(item, maxVotes, rank) {
-  const popularity = state.openSort === 'popularity' &&
-    state.openDirection === 'desc' && !state.controversialOrder;
+function setTeamNoteExpanded(note, expanded) {
+  note.classList.toggle('is-collapsed', !expanded);
+  const toggle = note.querySelector('.note-toggle');
+  if (!toggle) return;
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.textContent = expanded ? 'Hide ▴' : 'Show ▾';
+}
+
+function measureTeamNote(note) {
+  const copy = note.querySelector('.note-copy');
+  const toggle = note.querySelector('.note-toggle');
+  note.classList.remove('is-short', 'is-collapsed');
+  const lineHeight = Number.parseFloat(getComputedStyle(copy).lineHeight) || 22;
+  const isShort = copy.scrollHeight <= lineHeight * 1.5;
+  note.classList.toggle('is-short', isShort);
+  toggle.hidden = isShort;
+  if (isShort) {
+    note.removeAttribute('role');
+    note.removeAttribute('tabindex');
+    setTeamNoteExpanded(note, true);
+    return;
+  }
+  if (matchMedia('(max-width: 479px)').matches) {
+    note.setAttribute('role', 'button');
+    note.tabIndex = 0;
+    setTeamNoteExpanded(note, false);
+  } else {
+    note.removeAttribute('role');
+    note.removeAttribute('tabindex');
+    setTeamNoteExpanded(note, true);
+  }
+}
+
+function createTeamNote(text) {
+  const note = el('aside', 'note team-note');
+  const head = el('div', 'note-head');
+  const label = el('span', 'who', '💜 FROM THE TEAM');
+  const preview = el('span', 'note-preview', text);
+  const toggle = el('button', 'note-toggle', 'Hide ▴');
+  toggle.type = 'button';
+  toggle.setAttribute('aria-expanded', 'true');
+  const copy = el('p', 'note-copy', text);
+  head.append(label, preview, toggle);
+  note.append(head, copy);
+
+  const toggleNote = () => setTeamNoteExpanded(note, note.classList.contains('is-collapsed'));
+  toggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleNote();
+  });
+  note.addEventListener('click', (event) => {
+    if (!matchMedia('(max-width: 479px)').matches || note.classList.contains('is-short')) return;
+    if (event.target.closest('button')) return;
+    toggleNote();
+  });
+  note.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key) || !matchMedia('(max-width: 479px)').matches) return;
+    event.preventDefault();
+    toggleNote();
+  });
+  requestAnimationFrame(() => measureTeamNote(note));
+  return note;
+}
+
+function createOpenRow(item, rank) {
+  const popularity = state.openSort === 'popularity' && !state.controversialOrder;
   const inProgress = hasStatus(item, IN_PROGRESS_STATUS);
   const planned = hasStatus(item, PLANNED_STATUS);
   const classes = ['row'];
@@ -537,30 +708,34 @@ function createOpenRow(item, maxVotes, rank) {
     else if (planned) classes.push('planned');
   }
   const article = el('article', classes.join(' '));
-  if (popularity) article.dataset.rank = String(rank);
+  if (popularity) {
+    article.dataset.rank = String(rank);
+    article.append(createRankBadge(rank, item));
+  }
+  const status = inProgress ? IN_PROGRESS_STATUS : planned ? PLANNED_STATUS : null;
+  if (status) {
+    const badge = el(
+      'span',
+      `edge-badge status-badge status-badge-${inProgress ? 'progress' : 'planned'}`,
+      inProgress ? '🚧 In Progress' : '📋 Planned',
+    );
+    article.append(badge);
+  }
 
   const voteBlock = el('div', 'votes');
   voteBlock.setAttribute('aria-label', plural(item.votes, 'vote'));
-  if (popularity) voteBlock.append(el('span', 'rank', rankMark(rank)));
   const voteNumber = el('div', 'n');
   voteNumber.append(
     el('span', '', item.votes.toLocaleString('en')),
     el('span', 'vote-heart', '💜'),
   );
-  voteBlock.append(voteNumber);
-  if (state.openFilters.has('controversial')) {
-    voteBlock.append(el('span', 'downvote-count', `👎 ${item.downvotes.toLocaleString('en')}`));
-  }
+  voteBlock.append(voteNumber, el('span', 'vote-label', 'VOTES'));
   const prism = el('div', 'prism');
   prism.setAttribute('aria-hidden', 'true');
   const fill = el('i');
-  fill.style.width = `${Math.max(0, Math.min(100, (item.votes / maxVotes) * 100))}%`;
+  fill.style.width = `${Math.max(0, Math.min(100, (item.votes / state.openGlobalMaxVotes) * 100))}%`;
   prism.append(fill);
-  voteBlock.append(prism);
-  const trendData = formatTrend(item);
-  const trend = el('span', trendData.className, trendData.text);
-  trend.setAttribute('aria-label', trendData.label);
-  voteBlock.append(trend);
+  voteBlock.append(prism, createVoteTrend(item), el('span', 'trend-period', 'LAST 7 DAYS'));
 
   const body = el('div', 'body');
   const heading = el('h2');
@@ -571,14 +746,9 @@ function createOpenRow(item, maxVotes, rank) {
   meta.append(el('span', '', `posted ${formatDay(item.created_at)}`), el('span', 'meta-separator', '·'));
   const voteLink = link(item.url, 'Vote on Discord ↗');
   voteLink.className = 'meta-action';
+  voteLink.dataset.discordThreadId = item.id;
   meta.append(voteLink);
   body.append(meta);
-
-  if (item.note) {
-    const note = el('aside', 'note');
-    note.append(el('span', 'who', 'From the team'), el('p', '', item.note));
-    body.append(note);
-  }
 
   body.append(createReactionSlot(item));
 
@@ -588,13 +758,12 @@ function createOpenRow(item, maxVotes, rank) {
     Number(statusOfTag(b) === 'in-progress') - Number(statusOfTag(a) === 'in-progress'),
   );
   for (const tag of orderedTags) {
-    if (tagBaseName(tag) === 'From App') continue;
-    const status = statusOfTag(tag);
-    const className = status ? `${status}-chip` : '';
-    chips.append(createFilterChip(displayStatusTag(tag), `tag:${tag}`, tagColor(tag), className));
+    if (tagBaseName(tag) === 'From App' || statusOfTag(tag)) continue;
+    chips.append(createFilterChip(displayStatusTag(tag), `tag:${tag}`, tagColor(tag)));
   }
 
   article.append(voteBlock, body, chips);
+  if (item.note) article.append(createTeamNote(item.note));
   return article;
 }
 
@@ -631,7 +800,6 @@ function renderOpen() {
     generatedAt: state.data.generated_at,
     filters: state.openFilters,
   });
-  const maxVotes = Math.max(1, ...state.data.open.map((item) => item.votes));
   if (items.length === 0) {
     const fragment = document.createDocumentFragment();
     const query = state.openQuery.trim();
@@ -653,7 +821,7 @@ function renderOpen() {
     const initial = document.createDocumentFragment();
     const initialEnd = Math.min(INITIAL_OPEN_ROWS, items.length);
     for (let index = 0; index < initialEnd; index++) {
-      initial.append(createOpenRow(items[index], maxVotes, index + 1));
+      initial.append(createOpenRow(items[index], state.openGlobalRanks.get(items[index].id)));
     }
     elements.openList.replaceChildren(initial);
     elements.openList.setAttribute('aria-busy', String(initialEnd < items.length));
@@ -663,7 +831,9 @@ function renderOpen() {
       if (version !== openRenderVersion) return;
       const fragment = document.createDocumentFragment();
       const end = Math.min(cursor + OPEN_BATCH_SIZE, items.length);
-      for (; cursor < end; cursor++) fragment.append(createOpenRow(items[cursor], maxVotes, cursor + 1));
+      for (; cursor < end; cursor++) {
+        fragment.append(createOpenRow(items[cursor], state.openGlobalRanks.get(items[cursor].id)));
+      }
       elements.openList.append(fragment);
       if (cursor < items.length) {
         scheduleIdle(appendBatch);
@@ -683,7 +853,7 @@ function renderOpen() {
   }
   const suffix = state.openFilters.size ? ` · ${plural(state.openFilters.size, 'active filter')}` : '';
   elements.openResultCount.textContent = `${plural(items.length, 'suggestion')}${suffix}`;
-  elements.filterSheetApply.textContent = `Show ${plural(items.length, 'suggestion')}`;
+  if (state.view === 'open') elements.filterSheetApply.textContent = `Show ${plural(items.length, 'suggestion')}`;
   if (!performance.getEntriesByName('roadmap-render-open').length) {
     performance.measure('roadmap-render-open', { start: renderStarted, end: performance.now() });
   }
@@ -691,6 +861,12 @@ function renderOpen() {
 
 function createShippedRow(item, maxVotes) {
   const article = el('article', `row shipped-card${item.discord_alive ? '' : ' archived-card'}`);
+  const delivery = deliveryBadge(item);
+  if (delivery) {
+    const badge = el('span', `edge-badge delivery-badge delivery-badge-${delivery.kind}`, delivery.label);
+    badge.title = `${delivery.days} days from suggestion to release`;
+    article.append(badge);
+  }
   const votes = Number.isInteger(item.requested_by) ? item.requested_by : 0;
   const voteBlock = el('div', 'votes');
   voteBlock.setAttribute('aria-label', plural(votes, 'request'));
@@ -719,6 +895,7 @@ function createShippedRow(item, maxVotes) {
   if (item.discord_alive && item.url) {
     const discordLink = link(item.url, 'Vote on Discord ↗');
     discordLink.className = 'meta-action shipped-meta-action';
+    discordLink.dataset.discordThreadId = item.id;
     metaParts.push(discordLink);
   } else {
     metaParts.push(el('span', 'archived-chip meta-archived', '📦 Archived'));
@@ -729,30 +906,16 @@ function createShippedRow(item, maxVotes) {
   });
   if (meta.childNodes.length > 0) body.append(meta);
 
-  if (item.note) {
-    const note = el('aside', 'note');
-    note.append(el('span', 'who', 'From the team'), el('p', '', item.note));
-    body.append(note);
-  }
-
   body.append(createReactionSlot(item, { commentsEnabled: item.discord_alive }));
 
   const chips = el('div', 'chips');
-  const badge = deliveryBadge(item);
-  if (badge) {
-    const className = badge.kind === 'neutral'
-      ? 'delivery-time neutral'
-      : `delivery-badge ${badge.kind}`;
-    const badgeNode = el('span', className, badge.label);
-    badgeNode.title = `${badge.days} days from suggestion to release`;
-    chips.append(badgeNode);
-  }
   for (const tag of item.tags) {
     const chip = el('span', 'chip', tag);
     setChipColor(chip, tagColor(tag));
     chips.append(chip);
   }
   article.append(voteBlock, body, chips);
+  if (item.note) article.append(createTeamNote(item.note));
   return article;
 }
 
@@ -777,6 +940,9 @@ function renderShipped() {
   const groups = groupShipped(state.data.shipped, {
     query: state.shippedQuery,
     sort: state.shippedSort,
+    direction: state.shippedDirection,
+    generatedAt: state.data.generated_at,
+    filters: state.shippedFilters,
   });
   const fragment = document.createDocumentFragment();
   const total = groups.reduce((sum, group) => sum + group.items.length, 0);
@@ -798,15 +964,75 @@ function renderShipped() {
   }
   elements.shippedList.replaceChildren(fragment);
   elements.shippedList.setAttribute('aria-busy', 'false');
-  elements.shippedResultCount.textContent = plural(total, 'shipped feature');
+  const suffix = state.shippedFilters.size
+    ? ` · ${plural(state.shippedFilters.size, 'active filter')}`
+    : '';
+  elements.shippedResultCount.textContent = `${plural(total, 'shipped feature')}${suffix}`;
+  if (state.view === 'shipped') elements.filterSheetApply.textContent = `Show ${plural(total, 'shipped feature')}`;
   state.shippedRendered = true;
   if (!performance.getEntriesByName('roadmap-render-shipped').length) {
     performance.measure('roadmap-render-shipped', { start: renderStarted, end: performance.now() });
   }
 }
 
+function appendFilterDefinitions(container, definitions, view) {
+  const fragment = document.createDocumentFragment();
+  for (const [label, filter] of definitions) {
+    fragment.append(createFilterChip(
+      label,
+      filter,
+      { accent: '#B2BEC3', text: '#DFE6E9' },
+      'activity-chip',
+      { activity: true, view },
+    ));
+  }
+  container.replaceChildren(fragment);
+}
+
+function appendTagDefinitions(container, view, { expanded = true, withMore = false } = {}) {
+  const publicTags = state.data.tag_names.filter((tag) => !statusOfTag(tag));
+  const fragment = document.createDocumentFragment();
+  publicTags.forEach((tag, index) => {
+    const chip = createFilterChip(tag, `tag:${tag}`, tagColor(tag), '', { view });
+    if (!expanded && index >= DESKTOP_TAG_LIMIT) chip.classList.add('tag-overflow');
+    fragment.append(chip);
+  });
+  if (withMore && publicTags.length > DESKTOP_TAG_LIMIT) {
+    const remaining = publicTags.length - DESKTOP_TAG_LIMIT;
+    const more = el('button', 'chip tag-more', expanded ? 'Show less' : `+ ${remaining} more`);
+    more.type = 'button';
+    more.addEventListener('click', () => {
+      if (view === 'shipped') state.shippedTagsExpanded = !state.shippedTagsExpanded;
+      else state.tagsExpanded = !state.tagsExpanded;
+      configureFilters();
+    });
+    fragment.append(more);
+  }
+  container.replaceChildren(fragment);
+}
+
+function configureSheetFilters() {
+  const shipped = state.view === 'shipped';
+  elements.sheetOpenSorts.hidden = shipped;
+  elements.sheetShippedSorts.hidden = !shipped;
+  const definitions = shipped
+    ? [['🆕 Last 7 days', 'last-7-days'], ['🆕 Last 30 days', 'last-30-days']]
+    : [
+      ['🚧 In progress', 'status:In Progress'],
+      ['📋 Planned', 'status:Planned'],
+      ['⚡ Controversial', 'controversial'],
+      ['💜 Needs love', 'needs-love'],
+      ['🆕 Last 7 days', 'last-7-days'],
+      ['🆕 Last 30 days', 'last-30-days'],
+    ];
+  appendFilterDefinitions(elements.sheetActivityFilters, definitions, state.view);
+  appendTagDefinitions(elements.sheetTagFilters, state.view);
+  elements.filterSheetTitle.textContent = shipped ? 'Sort & Filter Shipped' : 'Sort & Filter Open';
+  syncFilterButtons();
+}
+
 function configureFilters() {
-  const activityDefinitions = [
+  const openActivityDefinitions = [
     ['🚧 In progress', 'status:In Progress'],
     ['📋 Planned', 'status:Planned'],
     ['⚡ Controversial', 'controversial'],
@@ -814,48 +1040,18 @@ function configureFilters() {
     ['🆕 Last 7 days', 'last-7-days'],
     ['🆕 Last 30 days', 'last-30-days'],
   ];
-  for (const container of [elements.activityFilters, elements.sheetActivityFilters]) {
-    const activity = document.createDocumentFragment();
-    for (const [label, filter] of activityDefinitions) {
-      activity.append(createFilterChip(
-        label,
-        filter,
-        { accent: '#B2BEC3', text: '#DFE6E9' },
-        'activity-chip',
-        { activity: true },
-      ));
-    }
-    container.replaceChildren(activity);
-  }
-
-  const publicTags = state.data.tag_names.filter((tag) => !statusOfTag(tag));
-  const desktopTags = document.createDocumentFragment();
-  publicTags.forEach((tag, index) => {
-    const chip = createFilterChip(tag, `tag:${tag}`, tagColor(tag));
-    if (!state.tagsExpanded && index >= DESKTOP_TAG_LIMIT) chip.classList.add('tag-overflow');
-    desktopTags.append(chip);
+  const shippedActivityDefinitions = [
+    ['🆕 Last 7 days', 'last-7-days'],
+    ['🆕 Last 30 days', 'last-30-days'],
+  ];
+  appendFilterDefinitions(elements.activityFilters, openActivityDefinitions, 'open');
+  appendFilterDefinitions(elements.shippedActivityFilters, shippedActivityDefinitions, 'shipped');
+  appendTagDefinitions(elements.tagFilters, 'open', { expanded: state.tagsExpanded, withMore: true });
+  appendTagDefinitions(elements.shippedTagFilters, 'shipped', {
+    expanded: state.shippedTagsExpanded,
+    withMore: true,
   });
-  if (publicTags.length > DESKTOP_TAG_LIMIT) {
-    const remaining = publicTags.length - DESKTOP_TAG_LIMIT;
-    const more = el(
-      'button',
-      'chip tag-more',
-      state.tagsExpanded ? 'Show less' : `+ ${remaining} more`,
-    );
-    more.type = 'button';
-    more.addEventListener('click', () => {
-      state.tagsExpanded = !state.tagsExpanded;
-      configureFilters();
-    });
-    desktopTags.append(more);
-  }
-  elements.tagFilters.replaceChildren(desktopTags);
-
-  const sheetTags = document.createDocumentFragment();
-  for (const tag of publicTags) {
-    sheetTags.append(createFilterChip(tag, `tag:${tag}`, tagColor(tag)));
-  }
-  elements.sheetTagFilters.replaceChildren(sheetTags);
+  configureSheetFilters();
   syncFilterButtons();
 }
 
@@ -883,7 +1079,107 @@ function showView(view, { focus = false } = {}) {
   for (const [name, panel] of Object.entries(elements.panels)) panel.hidden = name !== view;
   if (state.data && view === 'open' && !state.openRendered) renderOpen();
   if (state.data && view === 'shipped' && !state.shippedRendered) renderShipped();
+  if (state.data) {
+    configureSheetFilters();
+    syncSortButtons();
+  }
   history.replaceState(null, '', view === 'shipped' ? '#shipped' : location.pathname + location.search);
+  requestAnimationFrame(() => positionTabIndicator(view));
+}
+
+function positionTabIndicator(fromView = state.view, toView = null, progress = 0) {
+  const from = elements.tabs.find((tab) => tab.dataset.view === fromView);
+  const to = elements.tabs.find((tab) => tab.dataset.view === toView) ?? from;
+  if (!from || !to) return;
+  const inset = 10;
+  const amount = Math.max(0, Math.min(1, progress));
+  const fromLeft = from.offsetLeft + inset;
+  const toLeft = to.offsetLeft + inset;
+  const fromWidth = Math.max(0, from.offsetWidth - inset * 2);
+  const toWidth = Math.max(0, to.offsetWidth - inset * 2);
+  elements.tabIndicator.style.left = `${fromLeft + (toLeft - fromLeft) * amount}px`;
+  elements.tabIndicator.style.width = `${fromWidth + (toWidth - fromWidth) * amount}px`;
+  elements.tabIndicator.classList.add('is-ready');
+}
+
+function installTabSwipe() {
+  const hintKey = 'refract-roadmap-swipe-hint-v1';
+  const storage = {
+    read() {
+      try { return Number(localStorage.getItem(hintKey) ?? 0); } catch { return 3; }
+    },
+    write(value) {
+      try { localStorage.setItem(hintKey, String(value)); } catch { /* Storage can be disabled. */ }
+    },
+  };
+  if (window.innerWidth < 480) {
+    const visits = storage.read();
+    if (visits < 3) {
+      elements.swipeHint.hidden = false;
+      storage.write(visits + 1);
+    }
+  }
+
+  let gesture = null;
+  const excluded = '.toolbar, .sticky-toolbar, .mobile-toolbar, .filters, .sorts, .filter-sheet, input, button, a';
+  const reset = () => {
+    gesture = null;
+    elements.tabList.classList.remove('is-dragging');
+    positionTabIndicator(state.view);
+  };
+  elements.main.addEventListener('pointerdown', (event) => {
+    if (window.innerWidth >= 480 || !['touch', 'pen'].includes(event.pointerType)) return;
+    if (event.target.closest(excluded)) return;
+    gesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      fromView: state.view,
+      active: false,
+    };
+  });
+  elements.main.addEventListener('pointermove', (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.active && Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 10) {
+      reset();
+      return;
+    }
+    const target = gesture.fromView === 'open' && deltaX < 0
+      ? 'shipped'
+      : gesture.fromView === 'shipped' && deltaX > 0 ? 'open' : null;
+    if (!target || Math.abs(deltaX) < 8 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    gesture.active = true;
+    elements.tabList.classList.add('is-dragging');
+    positionTabIndicator(
+      gesture.fromView,
+      target,
+      Math.abs(deltaX) / Math.min(window.innerWidth * 0.7, 260),
+    );
+    if (event.cancelable) event.preventDefault();
+  }, { passive: false });
+  elements.main.addEventListener('pointerup', (event) => {
+    if (!gesture || event.pointerId !== gesture.pointerId) return;
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const target = resolveTabSwipe({ view: gesture.fromView, deltaX, deltaY });
+    const swiped = gesture.active && target;
+    reset();
+    if (!swiped) return;
+    showView(target);
+    elements.swipeHint.hidden = true;
+    storage.write(3);
+    const suppressClick = (clickEvent) => {
+      clickEvent.preventDefault();
+      clickEvent.stopPropagation();
+    };
+    document.addEventListener('click', suppressClick, { capture: true, once: true });
+    setTimeout(() => document.removeEventListener('click', suppressClick, true), 350);
+  });
+  elements.main.addEventListener('pointercancel', reset);
+  window.addEventListener('resize', () => positionTabIndicator(state.view));
+  requestAnimationFrame(() => positionTabIndicator(state.view));
 }
 
 function setOpenQuery(value) {
@@ -892,6 +1188,18 @@ function setOpenQuery(value) {
     if (input.value !== value) input.value = value;
   }
   renderOpen();
+}
+
+function setShippedQuery(value) {
+  state.shippedQuery = value;
+  for (const input of [
+    elements.shippedSearch,
+    elements.shippedStickySearch,
+    elements.shippedMobileSearch,
+  ]) {
+    if (input.value !== value) input.value = value;
+  }
+  renderShipped();
 }
 
 function toggleSearch(input, button) {
@@ -903,6 +1211,7 @@ function toggleSearch(input, button) {
 }
 
 function openFilterSheet() {
+  configureSheetFilters();
   elements.filterSheet.hidden = false;
   document.body.classList.add('sheet-open');
   elements.filterSheetClose.focus();
@@ -911,24 +1220,72 @@ function openFilterSheet() {
 function closeFilterSheet() {
   elements.filterSheet.hidden = true;
   document.body.classList.remove('sheet-open');
-  elements.mobileFilterOpen.focus();
+  (state.view === 'shipped' ? elements.shippedMobileFilterOpen : elements.mobileFilterOpen).focus();
 }
 
-function installStickyObserver() {
+function installStickyObserver(toolbar, sentinel) {
   if (!('IntersectionObserver' in window)) {
-    elements.stickyToolbar.classList.add('is-visible');
+    toolbar.classList.add('is-visible');
     return;
   }
   const observer = new IntersectionObserver(([entry]) => {
-    elements.stickyToolbar.classList.toggle(
+    toolbar.classList.toggle(
       'is-visible',
       !entry.isIntersecting && entry.boundingClientRect.top < 0,
     );
   }, { threshold: 0 });
-  observer.observe(elements.toolbarSentinel);
+  observer.observe(sentinel);
+}
+
+function installDiscordDeeplinks() {
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const anchor = event.target.closest('a[data-discord-thread-id]');
+    if (!anchor) return;
+    const mobile = shouldAttemptDiscordDeeplink({
+      viewportWidth: window.innerWidth,
+      coarsePointer: matchMedia('(pointer: coarse)').matches,
+      maxTouchPoints: navigator.maxTouchPoints,
+    });
+    if (!mobile) return;
+
+    event.preventDefault();
+    let attempt = null;
+    const removeLifecycleListeners = () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', cancelFallback);
+    };
+    const cancelFallback = () => {
+      attempt?.cancel();
+      removeLifecycleListeners();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') cancelFallback();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', cancelFallback, { once: true });
+    attempt = startDiscordDeeplink({
+      appUrl: discordAppThreadUrl(DISCORD_GUILD_ID, anchor.dataset.discordThreadId),
+      webUrl: anchor.href,
+      timeoutMs: DISCORD_DEEPLINK_TIMEOUT_MS,
+      navigate: (url) => {
+        if (url === anchor.href) removeLifecycleListeners();
+        window.location.assign(url);
+      },
+    });
+  });
+}
+
+function syncBackToTop() {
+  const visible = window.scrollY > window.innerHeight * 2;
+  elements.backToTop.classList.toggle('is-visible', visible);
+  document.body.classList.toggle('back-to-top-visible', visible);
+  elements.backToTop.setAttribute('aria-hidden', String(!visible));
+  elements.backToTop.tabIndex = visible ? 0 : -1;
 }
 
 function wireControls() {
+  installTabSwipe();
   elements.mobileVotingToggle.addEventListener('click', () => {
     const expanded = elements.votingExplanation.classList.toggle('mobile-collapsed') === false;
     elements.mobileVotingToggle.setAttribute('aria-expanded', String(expanded));
@@ -945,10 +1302,11 @@ function wireControls() {
   for (const input of [elements.openSearch, elements.stickySearch, elements.mobileSearch]) {
     input.addEventListener('input', (event) => setOpenQuery(event.currentTarget.value));
   }
-  elements.shippedSearch.addEventListener('input', (event) => {
-    state.shippedQuery = event.currentTarget.value;
-    renderShipped();
-  });
+  for (const input of [
+    elements.shippedSearch,
+    elements.shippedStickySearch,
+    elements.shippedMobileSearch,
+  ]) input.addEventListener('input', (event) => setShippedQuery(event.currentTarget.value));
   for (const button of document.querySelectorAll('[data-open-sort]')) {
     button.addEventListener('click', () => {
       if (button.disabled) return;
@@ -956,13 +1314,7 @@ function wireControls() {
     });
   }
   for (const button of document.querySelectorAll('[data-shipped-sort]')) {
-    button.addEventListener('click', () => {
-      state.shippedSort = button.dataset.shippedSort;
-      for (const peer of document.querySelectorAll('[data-shipped-sort]')) {
-        peer.setAttribute('aria-pressed', String(peer === button));
-      }
-      renderShipped();
-    });
+    button.addEventListener('click', () => setShippedSort(button.dataset.shippedSort));
   }
   elements.stickyClear.addEventListener('click', () => {
     state.openFilters.clear();
@@ -971,11 +1323,21 @@ function wireControls() {
     syncSortButtons();
     renderOpen();
   });
+  elements.shippedStickyClear.addEventListener('click', () => {
+    state.shippedFilters.clear();
+    syncFilterButtons();
+    renderShipped();
+  });
   elements.stickySearchToggle.addEventListener('click', () =>
     toggleSearch(elements.stickySearch, elements.stickySearchToggle));
+  elements.shippedStickySearchToggle.addEventListener('click', () =>
+    toggleSearch(elements.shippedStickySearch, elements.shippedStickySearchToggle));
   elements.mobileSearchToggle.addEventListener('click', () =>
     toggleSearch(elements.mobileSearch, elements.mobileSearchToggle));
+  elements.shippedMobileSearchToggle.addEventListener('click', () =>
+    toggleSearch(elements.shippedMobileSearch, elements.shippedMobileSearchToggle));
   elements.mobileFilterOpen.addEventListener('click', openFilterSheet);
+  elements.shippedMobileFilterOpen.addEventListener('click', openFilterSheet);
   elements.filterSheetClose.addEventListener('click', closeFilterSheet);
   elements.filterSheetApply.addEventListener('click', closeFilterSheet);
   elements.filterSheet.addEventListener('click', (event) => {
@@ -984,7 +1346,19 @@ function wireControls() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !elements.filterSheet.hidden) closeFilterSheet();
   });
-  installStickyObserver();
+  installStickyObserver(elements.stickyToolbar, elements.toolbarSentinel);
+  installStickyObserver(elements.shippedStickyToolbar, elements.shippedToolbarSentinel);
+  installDiscordDeeplinks();
+  elements.backToTop.addEventListener('click', () => window.scrollTo({
+    top: 0,
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  }));
+  window.addEventListener('scroll', syncBackToTop, { passive: true });
+  window.addEventListener('resize', () => {
+    syncBackToTop();
+    for (const note of document.querySelectorAll('.team-note')) measureTeamNote(note);
+  });
+  syncBackToTop();
 }
 
 async function load() {
@@ -997,6 +1371,9 @@ async function load() {
     const jsonText = await response.text();
     const jsonDownloaded = performance.now();
     state.data = hydrateRoadmap(JSON.parse(jsonText));
+    state.openGlobalRanks = globalPopularityRanks(state.data.open);
+    const firstGlobal = state.data.open.find((item) => state.openGlobalRanks.get(item.id) === 1);
+    state.openGlobalMaxVotes = Math.max(1, firstGlobal?.votes ?? 0);
     configureHottest();
     configureFilters();
     const jsonParsed = performance.now();

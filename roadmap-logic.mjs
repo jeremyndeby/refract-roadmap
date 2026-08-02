@@ -1,6 +1,7 @@
 export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
 export const CONTROVERSIAL_MIN_DOWNVOTES = 3;
+export const DISCORD_DEEPLINK_TIMEOUT_MS = 850;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function titleOrder(a, b) {
@@ -21,6 +22,63 @@ function delta(item) {
 
 function createdAt(item) {
   return typeof item.created_at === 'string' ? item.created_at : '';
+}
+
+function releasedAt(item) {
+  return typeof item.released_at === 'string' ? item.released_at : '';
+}
+
+export function discordAppThreadUrl(guildId, threadId) {
+  return `discord://-/channels/${guildId}/${threadId}`;
+}
+
+export function shouldAttemptDiscordDeeplink({
+  viewportWidth,
+  coarsePointer = false,
+  maxTouchPoints = 0,
+} = {}) {
+  return Number(viewportWidth) < 480 || coarsePointer || Number(maxTouchPoints) > 0;
+}
+
+export function startDiscordDeeplink({
+  appUrl,
+  webUrl,
+  navigate,
+  timeoutMs = DISCORD_DEEPLINK_TIMEOUT_MS,
+  setTimer = setTimeout,
+  clearTimer = clearTimeout,
+}) {
+  let timer = setTimer(() => {
+    timer = null;
+    navigate(webUrl);
+  }, timeoutMs);
+  try {
+    navigate(appUrl);
+  } catch {
+    // Unsupported custom schemes may throw synchronously; the web fallback remains armed.
+  }
+  return {
+    cancel() {
+      if (timer === null) return;
+      clearTimer(timer);
+      timer = null;
+    },
+  };
+}
+
+export function resolveTabSwipe({
+  view,
+  deltaX,
+  deltaY,
+  threshold = 52,
+  dominance = 1.2,
+} = {}) {
+  const horizontal = Math.abs(Number(deltaX) || 0);
+  const vertical = Math.abs(Number(deltaY) || 0);
+  if (horizontal < threshold || horizontal <= vertical * dominance) return null;
+  if (view === 'open' && deltaX < 0) return 'shipped';
+  if (view === 'shipped' && deltaX > 0) return 'open';
+  return null;
 }
 
 export function isHot(item, threshold = HOT_DELTA_THRESHOLD) {
@@ -44,6 +102,10 @@ export function isWithinDays(item, generatedAt, days) {
 
 export const isLast7Days = (item, generatedAt) => isWithinDays(item, generatedAt, 7);
 export const isLast30Days = (item, generatedAt) => isWithinDays(item, generatedAt, 30);
+export const isShippedLast7Days = (item, generatedAt) =>
+  isWithinDays({ created_at: item.released_at }, generatedAt, 7);
+export const isShippedLast30Days = (item, generatedAt) =>
+  isWithinDays({ created_at: item.released_at }, generatedAt, 30);
 
 export function tagBaseName(tag) {
   return String(tag ?? '')
@@ -91,11 +153,11 @@ export function deliveryBadge(item) {
   if (!Number.isFinite(created) || !Number.isFinite(released) || released < created) return null;
 
   const days = Math.round((released - created) / DAY_MS);
-  if (days < 14) return { kind: 'express', label: `⚡ Shipped in ${days} days`, days };
+  if (days < 14) return { kind: 'express', label: `⚡ Express · ${days}d`, days };
   if (days > 90) {
-    return { kind: 'worth-wait', label: `🧘 Worth the wait — ${days} days`, days };
+    return { kind: 'worth-wait', label: `🧘 Worth the wait · ${days}d`, days };
   }
-  return { kind: 'neutral', label: `Shipped in ${days} days`, days };
+  return { kind: 'neutral', label: `${days} days`, days };
 }
 
 export function selectOpen(items, {
@@ -161,30 +223,72 @@ export function monthLabel(month) {
   }).format(new Date(`${month}-01T00:00:00Z`));
 }
 
-export function groupShipped(items, { query = '', sort = 'by-month' } = {}) {
+export function selectShipped(items, {
+  query = '',
+  sort = 'date',
+  direction = 'desc',
+  generatedAt,
+  filters = [],
+} = {}) {
+  const active = new Set(filters);
+  const selected = items
+    .filter((item) => includesQuery(item, query, true))
+    .filter((item) => {
+      if (active.has('last-7-days') && !isShippedLast7Days(item, generatedAt)) return false;
+      if (active.has('last-30-days') && !isShippedLast30Days(item, generatedAt)) return false;
+      for (const filter of active) {
+        if (filter.startsWith('tag:') && !item.tags.includes(filter.slice(4))) return false;
+      }
+      return true;
+    });
+
+  return [...selected].sort((a, b) => {
+    if (sort === 'popularity') {
+      const order = requesters(a) - requesters(b) ||
+        releasedAt(a).localeCompare(releasedAt(b));
+      return (direction === 'asc' ? order : -order) || titleOrder(a, b);
+    }
+    const aDate = releasedAt(a);
+    const bDate = releasedAt(b);
+    if (!aDate && bDate) return 1;
+    if (aDate && !bDate) return -1;
+    const order = aDate.localeCompare(bDate) || requesters(a) - requesters(b);
+    return (direction === 'asc' ? order : -order) || titleOrder(a, b);
+  });
+}
+
+export function globalPopularityRanks(items) {
+  return new Map(
+    selectOpen(items, { sort: 'popularity', direction: 'desc' })
+      .map((item, index) => [item.id, index + 1]),
+  );
+}
+
+export function groupShipped(items, options = {}) {
+  const sort = options.sort ?? 'date';
+  const selected = selectShipped(items, options);
+  if (sort === 'popularity') {
+    return selected.length === 0 ? [] : [{
+      key: 'popularity',
+      label: 'Most requested',
+      earlier: false,
+      ungrouped: true,
+      items: selected,
+    }];
+  }
+
   const groups = new Map();
-  for (const item of items.filter((entry) => includesQuery(entry, query))) {
+  for (const item of selected) {
     const key = item.month ?? EARLIER;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
 
-  const keys = [...groups.keys()].sort((a, b) => {
-    if (a === EARLIER) return 1;
-    if (b === EARLIER) return -1;
-    return b.localeCompare(a);
-  });
-
-  return keys.map((key) => ({
+  return [...groups.keys()].map((key) => ({
     key,
     label: monthLabel(key === EARLIER ? null : key),
     earlier: key === EARLIER,
-    items: groups.get(key).sort((a, b) => {
-      if (sort === 'most-wanted') {
-        return requesters(b) - requesters(a) || titleOrder(a, b);
-      }
-      return String(b.released_at ?? '').localeCompare(String(a.released_at ?? '')) ||
-        requesters(b) - requesters(a) || titleOrder(a, b);
-    }),
+    ungrouped: false,
+    items: groups.get(key),
   }));
 }

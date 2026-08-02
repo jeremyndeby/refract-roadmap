@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=e34acef65256">
 </head>
 <body>
   <div class="spectrum" aria-hidden="true"></div>
@@ -73,17 +73,19 @@
         Have an idea? Suggest it on Discord <span aria-hidden="true">→</span>
       </a>
 
-      <nav class="tabs" role="tablist" aria-label="Roadmap views">
+      <nav class="tabs" id="roadmap-tabs" role="tablist" aria-label="Roadmap views">
         <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">
           Open <span class="count" id="open-count">—</span>
         </button>
         <button class="tab" id="tab-shipped" role="tab" aria-selected="false" aria-controls="view-shipped" data-view="shipped" tabindex="-1">
           Shipped <span class="count" id="shipped-count">—</span>
         </button>
+        <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
       </nav>
+      <p class="swipe-hint" id="swipe-hint" hidden aria-hidden="true">‹ swipe ›</p>
     </header>
 
-    <main>
+    <main id="roadmap-main">
       <section id="view-open" role="tabpanel" aria-labelledby="tab-open">
         <div class="toolbar open-toolbar">
           <div class="toolbar-main">
@@ -91,10 +93,9 @@
               <span class="toolbar-label">Sort</span>
               <div class="sorts" role="group" aria-label="Sort open suggestions">
                 <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
-                <button class="sort" data-open-sort="hottest" aria-pressed="false" aria-describedby="hottest-availability">🔥 Trending ↓</button>
+                <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓ <span class="soon-badge">SOON</span></button>
                 <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
               </div>
-              <span class="sort-availability" id="hottest-availability">Available soon — tracking vote trends</span>
             </div>
             <div class="search-line">
               <label class="sr-only" for="open-search">Search open suggestions</label>
@@ -140,13 +141,50 @@
       </section>
 
       <section id="view-shipped" role="tabpanel" aria-labelledby="tab-shipped" hidden>
-        <div class="toolbar">
-          <label class="sr-only" for="shipped-search">Search shipped features</label>
-          <input class="search" id="shipped-search" type="search" autocomplete="off" placeholder="Search shipped features…">
-          <div class="sorts" role="group" aria-label="Sort shipped features">
-            <button class="sort" data-shipped-sort="by-month" aria-pressed="true">By month</button>
-            <button class="sort" data-shipped-sort="most-wanted" aria-pressed="false">Most wanted</button>
+        <div class="toolbar open-toolbar">
+          <div class="toolbar-main">
+            <div class="sort-line">
+              <span class="toolbar-label">Sort</span>
+              <div class="sorts" role="group" aria-label="Sort shipped features">
+                <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+                <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
+              </div>
+            </div>
+            <div class="search-line">
+              <label class="sr-only" for="shipped-search">Search shipped features</label>
+              <input class="search" id="shipped-search" type="search" autocomplete="off" placeholder="Search shipped features…">
+            </div>
           </div>
+          <div class="filter-groups">
+            <div class="filter-group">
+              <span class="toolbar-label">Activity</span>
+              <div class="filters" id="shipped-activity-filters" role="group" aria-label="Filter shipped features by delivery date"></div>
+            </div>
+            <div class="filter-group">
+              <span class="toolbar-label">Tags</span>
+              <div class="filters tag-filter-list" id="shipped-tag-filters" role="group" aria-label="Filter shipped features by tag"></div>
+            </div>
+          </div>
+        </div>
+        <div id="shipped-toolbar-sentinel" aria-hidden="true"></div>
+        <div class="sticky-toolbar" id="shipped-sticky-toolbar" aria-label="Sticky shipped controls">
+          <div class="sorts compact-sorts" role="group" aria-label="Sticky shipped sort controls">
+            <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+            <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
+          </div>
+          <div class="sticky-active-filters" id="shipped-sticky-active-filters"></div>
+          <button class="sticky-clear" id="shipped-sticky-clear" type="button" hidden>Clear</button>
+          <button class="icon-button" id="shipped-sticky-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="shipped-sticky-search">Search shipped features</label>
+          <input class="search sticky-search" id="shipped-sticky-search" type="search" autocomplete="off" hidden>
+        </div>
+        <div class="mobile-toolbar" id="shipped-mobile-toolbar" aria-label="Mobile shipped controls">
+          <button class="mobile-filter-button" id="shipped-mobile-filter-open" type="button" aria-haspopup="dialog" aria-controls="filter-sheet">
+            ⇅ Sort &amp; Filter <span id="shipped-mobile-filter-count">· 0</span>
+          </button>
+          <button class="icon-button" id="shipped-mobile-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="shipped-mobile-search">Search shipped features</label>
+          <input class="search mobile-search" id="shipped-mobile-search" type="search" autocomplete="off" hidden>
         </div>
         <p class="result-count" id="shipped-result-count" aria-live="polite"></p>
         <div class="list shipped-list" id="shipped-list" aria-busy="true"></div>
@@ -162,10 +200,14 @@
         </div>
         <div class="sheet-section">
           <span class="toolbar-label">Sort by</span>
-          <div class="sorts sheet-sorts" role="group" aria-label="Mobile sort controls">
+          <div class="sorts sheet-sorts" id="sheet-open-sorts" role="group" aria-label="Mobile open sort controls">
             <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
-            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓</button>
+            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓ <span class="soon-badge">SOON</span></button>
             <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+          </div>
+          <div class="sorts sheet-sorts" id="sheet-shipped-sorts" role="group" aria-label="Mobile shipped sort controls" hidden>
+            <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+            <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
           </div>
         </div>
         <div class="sheet-section">
@@ -201,7 +243,9 @@
     </footer>
   </div>
 
+  <button class="back-to-top" id="back-to-top" type="button" aria-label="Back to top" aria-hidden="true" tabindex="-1">↑</button>
+
   <noscript>This page needs JavaScript to load and sort the roadmap.</noscript>
-  <script type="module" src="./app.mjs"></script>
+  <script type="module" src="./app.mjs?v=42f0c1609f45"></script>
 </body>
 </html>
