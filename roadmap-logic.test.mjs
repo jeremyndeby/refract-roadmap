@@ -8,6 +8,7 @@ import {
   groupShipped,
   nextFilterSelection,
   nextTeamNoteExpanded,
+  reactionPillDisplay,
   resolveTabSwipe,
   selectOpen,
   selectShipped,
@@ -107,6 +108,50 @@ test('les tags sont exclusifs sans désactiver le filtre activité', () => {
     exclusivePrefixes: ['tag:'],
   });
   assert.deepEqual([...filters], ['last-7-days']);
+});
+
+test('la pill officielle porte le max de la famille et les autres réactions restent sémantiques', () => {
+  const display = reactionPillDisplay({
+    votes: 123,
+    reactions: [
+      { emoji: '💜', count: 3 },
+      { emoji: { name: 'refractlove', id: 'legacy' }, count: 123 },
+      { emoji: '👍', count: 16 },
+      { emoji: '⬆️', count: 2 },
+    ],
+  });
+  assert.deepEqual(display.visible, [
+    { emoji: '💜', count: 123, semantic: 'primary', official: true },
+    { emoji: { name: 'refractlove', id: 'legacy' }, count: 123, semantic: 'positive', official: false },
+    { emoji: '👍', count: 16, semantic: 'positive', official: false },
+  ]);
+  assert.equal(display.hiddenCount, 1);
+});
+
+test('les réactions débordantes deviennent un compteur neutre après trois pills', () => {
+  const display = reactionPillDisplay({
+    votes: 97,
+    reactions: [
+      { emoji: '💜', count: 97 },
+      { emoji: '🔥', count: 12 },
+      { emoji: '☝️', count: 2 },
+      { emoji: '💥', count: 1 },
+      { emoji: '🤞', count: 1 },
+      { emoji: '🙏', count: 1 },
+      { emoji: { name: 'fire', id: 'custom' }, count: 1 },
+    ],
+  });
+  assert.deepEqual(display.visible.map((reaction) => reaction.count), [97, 12, 2]);
+  assert.equal(display.hiddenCount, 4);
+});
+
+test('une source sans total de famille conserve sa réaction violette brute', () => {
+  assert.deepEqual(reactionPillDisplay({
+    reactions: [{ emoji: '💜', count: 9 }],
+  }), {
+    visible: [{ emoji: '💜', count: 9, semantic: 'primary', official: false }],
+    hiddenCount: 0,
+  });
 });
 
 test('Controversial utilise exclusivement le champ downvotes et le trie décroissant', () => {

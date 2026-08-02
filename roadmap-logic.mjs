@@ -94,6 +94,34 @@ export function nextFilterSelection(current, filter, {
   return next;
 }
 
+export function reactionPillDisplay(item, { limit = 3 } = {}) {
+  const maxVisible = Math.max(0, Number.isInteger(limit) ? limit : 3);
+  const hasOfficialTotal = Number.isFinite(item?.votes);
+  const reactions = Array.isArray(item?.reactions)
+    ? item.reactions.filter((reaction) => !hasOfficialTotal || reaction?.emoji !== '💜')
+    : [];
+  const visible = [];
+  const voteCount = hasOfficialTotal ? Math.max(0, item.votes) : 0;
+
+  if (voteCount > 0 && maxVisible > 0) {
+    visible.push({ emoji: '💜', count: voteCount, semantic: 'primary', official: true });
+  }
+
+  const ordinarySlots = Math.max(0, maxVisible - visible.length);
+  visible.push(...reactions.slice(0, ordinarySlots).map((reaction) => ({
+    ...reaction,
+    semantic: reaction.emoji === '💜'
+      ? 'primary'
+      : reaction.negative === true ? 'negative' : 'positive',
+    official: false,
+  })));
+
+  return {
+    visible,
+    hiddenCount: Math.max(0, reactions.length - ordinarySlots),
+  };
+}
+
 export function resolveTabSwipe({
   view,
   deltaX,

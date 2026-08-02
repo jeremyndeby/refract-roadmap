@@ -7,6 +7,7 @@ import {
   hasStatus,
   nextFilterSelection,
   nextTeamNoteExpanded,
+  reactionPillDisplay,
   relativeAge,
   roadmapContext,
   resolveTabSwipe,
@@ -14,7 +15,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=2ea0ea9bcc0a';
+} from './roadmap-logic.mjs?v=1d13403d83ea';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -521,17 +522,20 @@ function reactionEmoji(emoji) {
 }
 
 function createReactionRow(item, { commentsEnabled = true } = {}) {
-  const age = item.created_at ? relativeAge(item.created_at, state.data.generated_at) : '';
-  if (item.reactions.length === 0 && (!commentsEnabled || item.comments === 0) && !age) {
+  const display = reactionPillDisplay(item);
+  if (display.visible.length === 0 && (!commentsEnabled || item.comments === 0)) {
     return null;
   }
   const row = el('div', 'reaction-row');
-  for (const reaction of item.reactions) {
-    const official = typeof reaction.emoji === 'string' && reaction.emoji === '💜';
-    const semantic = official ? 'primary' : reaction.negative === true ? 'negative' : 'positive';
-    const pill = el('span', `reaction-pill reaction-${semantic}`);
+  for (const reaction of display.visible) {
+    const pill = el('span', `reaction-pill reaction-${reaction.semantic}`);
     pill.append(reactionEmoji(reaction.emoji), el('span', '', reaction.count.toLocaleString('en')));
     row.append(pill);
+  }
+  if (display.hiddenCount > 0) {
+    const overflow = el('span', 'reaction-overflow', `+${display.hiddenCount.toLocaleString('en')}`);
+    overflow.setAttribute('aria-label', plural(display.hiddenCount, 'additional reaction'));
+    row.append(overflow);
   }
   if (commentsEnabled && item.comments > 0 && item.url) {
     const comments = link(item.url, `💬 ${item.comments.toLocaleString('en')}`);
@@ -541,7 +545,6 @@ function createReactionRow(item, { commentsEnabled = true } = {}) {
     comments.dataset.discordThreadId = item.id;
     row.append(comments);
   }
-  if (age) row.append(el('span', 'relative-age', `· ${age}`));
   return row;
 }
 
@@ -742,7 +745,9 @@ function createOpenRow(item, rank) {
   body.append(heading, createDescription(item.excerpt));
 
   const meta = el('div', 'meta');
-  meta.append(el('span', '', `posted ${formatDay(item.created_at)}`), el('span', 'meta-separator', '·'));
+  const age = item.created_at ? relativeAge(item.created_at, state.data.generated_at) : '';
+  const posted = `posted ${formatDay(item.created_at)}${age ? ` · ${age}` : ''}`;
+  meta.append(el('span', '', posted), el('span', 'meta-separator', '·'));
   const voteLink = link(item.url, 'Vote on Discord ↗');
   voteLink.className = 'meta-action';
   voteLink.dataset.discordThreadId = item.id;
@@ -760,8 +765,9 @@ function createOpenRow(item, rank) {
     if (tagBaseName(tag) === 'From App' || statusOfTag(tag)) continue;
     chips.append(createFilterChip(displayStatusTag(tag), `tag:${tag}`, tagColor(tag)));
   }
+  body.append(chips);
 
-  article.append(voteBlock, body, chips);
+  article.append(voteBlock, body);
   if (item.note) article.append(createTeamNote(item.note));
   return article;
 }
@@ -889,7 +895,10 @@ function createShippedRow(item, maxVotes) {
 
   const meta = el('div', 'meta');
   const metaParts = [];
-  if (item.created_at) metaParts.push(el('span', '', `posted ${formatDay(item.created_at)}`));
+  if (item.created_at) {
+    const age = relativeAge(item.created_at, state.data.generated_at);
+    metaParts.push(el('span', '', `posted ${formatDay(item.created_at)}${age ? ` · ${age}` : ''}`));
+  }
   if (item.released_at) metaParts.push(el('span', '', `shipped ${formatDay(item.released_at)}`));
   if (item.discord_alive && item.url) {
     const discordLink = link(item.url, 'Vote on Discord ↗');
@@ -913,7 +922,8 @@ function createShippedRow(item, maxVotes) {
     setChipColor(chip, tagColor(tag));
     chips.append(chip);
   }
-  article.append(voteBlock, body, chips);
+  body.append(chips);
+  article.append(voteBlock, body);
   if (item.note) article.append(createTeamNote(item.note));
   return article;
 }
@@ -1278,7 +1288,6 @@ function installDiscordDeeplinks() {
 function syncBackToTop() {
   const visible = window.scrollY > window.innerHeight * 2;
   elements.backToTop.classList.toggle('is-visible', visible);
-  document.body.classList.toggle('back-to-top-visible', visible);
   elements.backToTop.setAttribute('aria-hidden', String(!visible));
   elements.backToTop.tabIndex = visible ? 0 : -1;
 }
