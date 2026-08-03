@@ -207,6 +207,9 @@ export function relativeAge(value, reference = new Date()) {
 }
 
 export function deliveryBadge(item) {
+  if (item?.beat_to_it === true) {
+    return { kind: 'beat', label: '✨ Beat you to it', days: null };
+  }
   const created = /^\d{4}-\d{2}-\d{2}$/.test(String(item?.created_at ?? ''))
     ? Date.parse(`${item.created_at}T00:00:00Z`)
     : NaN;

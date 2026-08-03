@@ -474,6 +474,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, [role='button']:focu
 .status-badge-planned { border-color: var(--planned); color: #70B9F4; }
 .delivery-badge-worth-wait { border-color: var(--primary); color: var(--primary-light); }
 .delivery-badge-neutral { border-color: var(--border); color: var(--text-secondary); }
+.delivery-badge-beat { border-color: #A29BFE; color: #C8C4FF; }
 .votes { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 4px; }
 .votes .n {
   display: flex;
@@ -543,6 +544,7 @@ button:focus-visible, input:focus-visible, a:focus-visible, [role='button']:focu
 .body h2 a, .body h2 a:visited, .shipped-row .title a, .shipped-row .title a:visited { color: var(--text-bright); text-decoration: none; }
 .body h2 a:hover { color: var(--primary-light); }
 .body h2 a:active { color: var(--primary); }
+.shipped-title-link-mark { color: #A29BFE; font-size: 0.82em; }
 .description {
   position: relative;
   margin-bottom: 8px;
@@ -602,6 +604,23 @@ button:focus-visible, input:focus-visible, a:focus-visible, [role='button']:focu
 .meta-action:hover { color: var(--primary); }
 .meta-action:active { color: var(--primary); }
 .meta-separator { color: var(--text-muted); }
+.version-meta { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.version-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border: 1px solid rgba(162, 155, 254, 0.55);
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.18);
+  color: #C8C4FF;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.version-chip-build { color: #DFE6E9; }
+.version-build { color: var(--text-secondary); font-size: 10px; white-space: nowrap; }
 .reaction-row {
   display: flex;
   flex-wrap: nowrap;
@@ -715,6 +734,14 @@ button:focus-visible, input:focus-visible, a:focus-visible, [role='button']:focu
 .release-head .month { color: var(--success); font-size: 14px; font-weight: 700; }
 .release-head .month::before { content: '✓ '; }
 .release-head .detail { color: var(--text-secondary); font-size: 12px; }
+.shipped-scale {
+  margin: -3px 0 24px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: right;
+}
+.shipped-scale strong { color: #DFE6E9; font-weight: 600; }
 .release.earlier { margin-top: 40px; }
 .release.earlier .month { color: var(--text-secondary); }
 .release.earlier .month::before { content: ''; }
@@ -1373,6 +1400,10 @@ noscript { display: block; padding: 20px; color: var(--text); text-align: center
   .description-text { padding-right: 66px; -webkit-line-clamp: 2; }
   .description-toggle { font-size: 10px; }
   .meta { gap: 5px; font-size: 10px; }
+  .version-meta { gap: 4px; }
+  .version-chip { min-height: 18px; padding: 2px 6px; font-size: 9px; }
+  .version-build { font-size: 9px; }
+  .shipped-scale { margin: -2px 0 18px; font-size: 10px; text-align: left; }
   .meta-action {
     padding: 4px 7px;
     border-radius: 8px;
