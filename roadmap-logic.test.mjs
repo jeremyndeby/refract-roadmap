@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  adjacentTabView,
   deliveryBadge,
   discordAppThreadUrl,
   globalPopularityRanks,
@@ -202,8 +203,12 @@ test('le deeplink retombe sur le web si l’app est absente', () => {
 
 test('le swipe d’onglet exige un geste horizontal dominant dans la bonne direction', () => {
   assert.equal(resolveTabSwipe({ view: 'open', deltaX: -80, deltaY: 12 }), 'shipped');
+  assert.equal(resolveTabSwipe({ view: 'shipped', deltaX: -80, deltaY: 12 }), 'timeline');
   assert.equal(resolveTabSwipe({ view: 'shipped', deltaX: 80, deltaY: 12 }), 'open');
+  assert.equal(resolveTabSwipe({ view: 'timeline', deltaX: 80, deltaY: 12 }), 'shipped');
+  assert.equal(resolveTabSwipe({ view: 'timeline', deltaX: -80, deltaY: 12 }), null);
   assert.equal(resolveTabSwipe({ view: 'open', deltaX: 80, deltaY: 12 }), null);
   assert.equal(resolveTabSwipe({ view: 'open', deltaX: -40, deltaY: 2 }), null);
   assert.equal(resolveTabSwipe({ view: 'open', deltaX: -90, deltaY: 80 }), null);
+  assert.equal(adjacentTabView('shipped', 1), 'timeline');
 });
