@@ -54,6 +54,10 @@ test('les dossards Shipped remplacent les anciens libellés de délai', () => {
     deliveryBadge({ created_at: '2026-06-01', released_at: '2026-07-16' }),
     { kind: 'neutral', label: '45 days', days: 45 },
   );
+  assert.deepEqual(
+    deliveryBadge({ created_at: '2026-07-20', released_at: '2026-06-01', beat_to_it: true }),
+    { kind: 'beat', label: '✨ Beat you to it', days: null },
+  );
   assert.equal(deliveryBadge({ created_at: null, released_at: null }), null);
 });
 

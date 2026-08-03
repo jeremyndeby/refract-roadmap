@@ -16,7 +16,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=e6e0c2bd2821';
+} from './roadmap-logic.mjs?v=e1d14ce5230f';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -84,6 +84,7 @@ const elements = {
   votingExplanation: document.querySelector('#voting-explanation'),
   openResultCount: document.querySelector('#open-result-count'),
   shippedResultCount: document.querySelector('#shipped-result-count'),
+  shippedScale: document.querySelector('#shipped-scale'),
   openList: document.querySelector('#open-list'),
   shippedList: document.querySelector('#shipped-list'),
   timelineRoot: document.querySelector('#timeline-root'),
@@ -164,6 +165,7 @@ function hydrateRoadmap(data) {
     generated_at: data.generated_at,
     trends_ready: data.trends_ready === true,
     periods: data.periods,
+    scale: data.scale ?? null,
     timeline: data.timeline,
     reactions_file: data.reactions_file ?? null,
     tag_names: tagNames,
@@ -886,7 +888,9 @@ function createShippedRow(item, maxVotes) {
   const delivery = deliveryBadge(item);
   if (delivery) {
     const badge = el('span', `edge-badge delivery-badge delivery-badge-${delivery.kind}`, delivery.label);
-    badge.title = `${delivery.days} days from suggestion to release`;
+    badge.title = delivery.kind === 'beat'
+      ? 'This feature was already in the app before the suggestion was posted'
+      : `${delivery.days} days from suggestion to release`;
     article.append(badge);
   }
   const votes = Number.isInteger(item.requested_by) ? item.requested_by : 0;
@@ -906,23 +910,60 @@ function createShippedRow(item, maxVotes) {
 
   const body = el('div', 'body');
   const heading = el('h2');
-  if (item.discord_alive && item.url) heading.append(link(item.url, item.title));
-  else heading.append(el('span', '', item.title));
-  body.append(heading, createDescription(item.excerpt, { expandable: item.discord_alive }));
+  if (item.discord_alive && item.url) {
+    const titleLink = link(item.url, '');
+    titleLink.className = 'shipped-title-link';
+    titleLink.dataset.discordThreadId = item.id;
+    titleLink.append(
+      document.createTextNode(`${item.title} `),
+      el('span', 'shipped-title-link-mark', '↗'),
+    );
+    heading.append(titleLink);
+  } else {
+    heading.append(el('span', '', item.title));
+  }
+  body.append(heading, createDescription(item.excerpt));
 
   const meta = el('div', 'meta');
   const metaParts = [];
-  if (item.created_at) {
+  if (item.beat_to_it && item.created_at) {
+    metaParts.push(el('span', '', `posted ${formatDay(item.created_at)}`));
+    const since = el('span', 'version-meta');
+    since.append(document.createTextNode('in the app since '));
+    if (item.build) {
+      const buildChip = el('span', 'version-chip version-chip-build', item.build);
+      buildChip.title = `Build ${item.build}`;
+      buildChip.setAttribute('aria-label', `Build ${item.build}`);
+      since.append(buildChip);
+    } else if (item.cycle) {
+      const cycleChip = el('span', 'version-chip', item.cycle);
+      cycleChip.title = `Cycle ${item.cycle}`;
+      cycleChip.setAttribute('aria-label', `Cycle ${item.cycle}`);
+      since.append(cycleChip);
+    }
+    metaParts.push(since);
+  } else if (item.created_at) {
     const age = relativeAge(item.created_at, state.data.generated_at);
     metaParts.push(el('span', '', `posted ${formatDay(item.created_at)}${age ? ` · ${age}` : ''}`));
   }
-  if (item.released_at) metaParts.push(el('span', '', `shipped ${formatDay(item.released_at)}`));
-  if (item.discord_alive && item.url) {
-    const discordLink = link(item.url, 'Vote on Discord ↗');
-    discordLink.className = 'meta-action shipped-meta-action';
-    discordLink.dataset.discordThreadId = item.id;
-    metaParts.push(discordLink);
-  } else {
+  if (!item.beat_to_it && item.released_at) {
+    const shipped = el('span', 'version-meta');
+    shipped.append(document.createTextNode(`shipped ${formatDay(item.released_at)}`));
+    if (item.cycle) {
+      const cycleChip = el('span', 'version-chip', item.cycle);
+      cycleChip.title = `Cycle ${item.cycle}`;
+      cycleChip.setAttribute('aria-label', `Cycle ${item.cycle}`);
+      shipped.append(cycleChip);
+    }
+    if (item.build) {
+      const build = el('span', 'version-build', item.build);
+      build.title = `Build ${item.build}`;
+      build.setAttribute('aria-label', `Build ${item.build}`);
+      shipped.append(build);
+    }
+    metaParts.push(shipped);
+  }
+  if (!item.discord_alive) {
     metaParts.push(el('span', 'archived-chip meta-archived', '📦 Archived'));
   }
   metaParts.forEach((part, index) => {
@@ -995,11 +1036,31 @@ function renderShipped() {
     ? ` · ${plural(state.shippedFilters.size, 'active filter')}`
     : '';
   elements.shippedResultCount.textContent = `${plural(total, 'shipped feature')}${suffix}`;
+  renderShippedScale();
   if (state.view === 'shipped') elements.filterSheetApply.textContent = `Show ${plural(total, 'shipped feature')}`;
   state.shippedRendered = true;
   if (!performance.getEntriesByName('roadmap-render-shipped').length) {
     performance.measure('roadmap-render-shipped', { start: renderStarted, end: performance.now() });
   }
+}
+
+function renderShippedScale() {
+  const scale = state.data.scale;
+  if (!scale || !Number.isInteger(scale.classified_items) || !Number.isInteger(scale.builds)) {
+    elements.shippedScale.hidden = true;
+    elements.shippedScale.replaceChildren();
+    return;
+  }
+  const improvements = Math.floor(scale.classified_items / 10) * 10;
+  const builds = Math.floor(scale.builds / 10) * 10;
+  elements.shippedScale.replaceChildren(
+    document.createTextNode('…and that’s just community suggestions: '),
+    el('strong', '', `${improvements.toLocaleString('en')}+ improvements`),
+    document.createTextNode(' shipped across '),
+    el('strong', '', `${builds.toLocaleString('en')}+ builds`),
+    document.createTextNode(' since March'),
+  );
+  elements.shippedScale.hidden = false;
 }
 
 function createTimelineGoal(goal) {
