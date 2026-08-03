@@ -2,6 +2,7 @@ export const EARLIER = 'Earlier';
 export const HOT_DELTA_THRESHOLD = 10;
 export const CONTROVERSIAL_MIN_DOWNVOTES = 3;
 export const DISCORD_DEEPLINK_TIMEOUT_MS = 850;
+export const ROADMAP_VIEWS = Object.freeze(['open', 'shipped', 'timeline']);
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function titleOrder(a, b) {
@@ -132,9 +133,15 @@ export function resolveTabSwipe({
   const horizontal = Math.abs(Number(deltaX) || 0);
   const vertical = Math.abs(Number(deltaY) || 0);
   if (horizontal < threshold || horizontal <= vertical * dominance) return null;
-  if (view === 'open' && deltaX < 0) return 'shipped';
-  if (view === 'shipped' && deltaX > 0) return 'open';
-  return null;
+  return adjacentTabView(view, deltaX < 0 ? 1 : -1);
+}
+
+export function adjacentTabView(view, direction) {
+  const index = ROADMAP_VIEWS.indexOf(view);
+  const target = index + Math.sign(Number(direction) || 0);
+  return index >= 0 && target >= 0 && target < ROADMAP_VIEWS.length
+    ? ROADMAP_VIEWS[target]
+    : null;
 }
 
 export function isHot(item, threshold = HOT_DELTA_THRESHOLD) {

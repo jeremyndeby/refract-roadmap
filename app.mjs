@@ -1,4 +1,5 @@
 import {
+  adjacentTabView,
   DISCORD_DEEPLINK_TIMEOUT_MS,
   deliveryBadge,
   discordAppThreadUrl,
@@ -15,7 +16,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=1d13403d83ea';
+} from './roadmap-logic.mjs?v=e6e0c2bd2821';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -31,13 +32,16 @@ const ACTIVITY_FILTERS = new Set([
   'last-30-days',
 ]);
 const DESKTOP_TAG_LIMIT = 8;
+const initialPostMatch = location.hash.match(/^#post-(\d+)$/u);
 let openRenderVersion = 0;
 let descriptionMeasureFrame = null;
 const descriptionMeasureQueue = [];
 
 const state = {
   data: null,
-  view: location.hash === '#shipped' ? 'shipped' : 'open',
+  view: location.hash === '#timeline'
+    ? 'timeline'
+    : location.hash === '#shipped' ? 'shipped' : 'open',
   openQuery: '',
   shippedQuery: '',
   openSort: 'popularity',
@@ -53,6 +57,9 @@ const state = {
   shippedTagsExpanded: false,
   openRendered: false,
   shippedRendered: false,
+  timelineRendered: false,
+  postTarget: null,
+  pendingPostId: initialPostMatch?.[1] ?? null,
 };
 
 document.fonts?.ready.then(() => {
@@ -79,6 +86,7 @@ const elements = {
   shippedResultCount: document.querySelector('#shipped-result-count'),
   openList: document.querySelector('#open-list'),
   shippedList: document.querySelector('#shipped-list'),
+  timelineRoot: document.querySelector('#timeline-root'),
   hottestSort: document.querySelector('[data-open-sort="hottest"]'),
   activityFilters: document.querySelector('#activity-filters'),
   tagFilters: document.querySelector('#tag-filters'),
@@ -123,6 +131,7 @@ const elements = {
   panels: {
     open: document.querySelector('#view-open'),
     shipped: document.querySelector('#view-shipped'),
+    timeline: document.querySelector('#view-timeline'),
   },
 };
 
@@ -155,6 +164,7 @@ function hydrateRoadmap(data) {
     generated_at: data.generated_at,
     trends_ready: data.trends_ready === true,
     periods: data.periods,
+    timeline: data.timeline,
     reactions_file: data.reactions_file ?? null,
     tag_names: tagNames,
     open: data.open.map((item) => ({
@@ -712,6 +722,8 @@ function createOpenRow(item, rank) {
     else if (planned) classes.push('planned');
   }
   const article = el('article', classes.join(' '));
+  article.id = `roadmap-post-${item.id}`;
+  article.tabIndex = -1;
   article.dataset.rank = String(rank);
   article.append(createRankBadge(rank, item));
   const status = inProgress ? IN_PROGRESS_STATUS : planned ? PLANNED_STATUS : null;
@@ -824,12 +836,15 @@ function renderOpen() {
     state.openRendered = true;
   } else {
     const initial = document.createDocumentFragment();
-    const initialEnd = Math.min(INITIAL_OPEN_ROWS, items.length);
+    const initialEnd = state.postTarget?.view === 'open'
+      ? items.length
+      : Math.min(INITIAL_OPEN_ROWS, items.length);
     for (let index = 0; index < initialEnd; index++) {
       initial.append(createOpenRow(items[index], state.openGlobalRanks.get(items[index].id)));
     }
     elements.openList.replaceChildren(initial);
     elements.openList.setAttribute('aria-busy', String(initialEnd < items.length));
+    if (state.postTarget?.view === 'open') requestAnimationFrame(scrollToRoadmapPost);
 
     let cursor = initialEnd;
     const appendBatch = () => {
@@ -866,6 +881,8 @@ function renderOpen() {
 
 function createShippedRow(item, maxVotes) {
   const article = el('article', `row shipped-card${item.discord_alive ? '' : ' archived-card'}`);
+  article.id = `roadmap-post-${item.id}`;
+  article.tabIndex = -1;
   const delivery = deliveryBadge(item);
   if (delivery) {
     const badge = el('span', `edge-badge delivery-badge delivery-badge-${delivery.kind}`, delivery.label);
@@ -973,6 +990,7 @@ function renderShipped() {
   }
   elements.shippedList.replaceChildren(fragment);
   elements.shippedList.setAttribute('aria-busy', 'false');
+  if (state.postTarget?.view === 'shipped') requestAnimationFrame(scrollToRoadmapPost);
   const suffix = state.shippedFilters.size
     ? ` · ${plural(state.shippedFilters.size, 'active filter')}`
     : '';
@@ -982,6 +1000,285 @@ function renderShipped() {
   if (!performance.getEntriesByName('roadmap-render-shipped').length) {
     performance.measure('roadmap-render-shipped', { start: renderStarted, end: performance.now() });
   }
+}
+
+function createTimelineGoal(goal) {
+  const section = el('section', 'timeline-goal');
+  section.setAttribute('aria-label', 'Refract Pro community goal');
+  const head = el('div', 'timeline-goal-head');
+  head.append(
+    el('strong', '', goal.title),
+    el('span', 'timeline-goal-value', goal.value),
+  );
+  const progress = el('div', 'timeline-progress');
+  progress.setAttribute('role', 'progressbar');
+  progress.setAttribute('aria-label', goal.title);
+  progress.setAttribute('aria-valuemin', '0');
+  progress.setAttribute('aria-valuemax', '100');
+  progress.setAttribute('aria-valuenow', String(goal.progress_percent));
+  const fill = el('div', 'timeline-progress-fill');
+  fill.style.width = `${goal.progress_percent}%`;
+  progress.append(fill);
+  section.append(head, progress, el('p', 'timeline-goal-caption', goal.caption));
+  return section;
+}
+
+function createTimelineHeading(node) {
+  const head = el('div', 'timeline-version-head');
+  head.append(el('h2', 'timeline-version-title', node.title));
+  if (node.badge) {
+    head.append(el('span', `timeline-version-badge timeline-version-badge-${node.badge.kind}`, node.badge.label));
+  }
+  if (node.meta) head.append(el('span', 'timeline-version-meta', node.meta));
+  return head;
+}
+
+function createTimelinePostLink(item) {
+  if (!item.post) return el('span', '', item.title);
+  const anchor = el('a', 'timeline-item-link');
+  anchor.href = `#post-${item.post.id}`;
+  anchor.dataset.roadmapPostId = item.post.id;
+  anchor.dataset.roadmapView = item.post.view;
+  anchor.append(
+    document.createTextNode(`${item.title} `),
+    el('span', 'timeline-item-link-mark', '↗'),
+  );
+  return anchor;
+}
+
+function createTimelineItem(item) {
+  const row = el('div', 'timeline-item');
+  row.append(el('span', 'timeline-item-emoji', item.emoji));
+  const name = el('span', 'timeline-item-name');
+  name.append(createTimelinePostLink(item));
+  row.append(name);
+  if (item.pick) row.append(el('span', 'timeline-pick', item.pick));
+  if (item.delay) row.append(el('span', 'timeline-delay', item.delay));
+  row.append(el('span', `timeline-status timeline-status-${item.status.kind}`, item.status.label));
+  return row;
+}
+
+function createTimelineVersionNode(node) {
+  const article = el('article', `timeline-node timeline-node-${node.tone}`);
+  article.dataset.timelineNode = node.id;
+  article.append(createTimelineHeading(node));
+  const card = el('div', `timeline-card${node.card_style === 'dim' ? ' timeline-card-dim' : ''}`);
+  for (const item of node.items) card.append(createTimelineItem(item));
+  for (const note of node.notes ?? []) card.append(el('p', 'timeline-card-note', note));
+  if (node.summary) {
+    const summary = el('p', 'timeline-card-note');
+    summary.append(document.createTextNode(node.summary.prefix), el('strong', '', node.summary.strong));
+    card.append(summary);
+  }
+  if (node.banner) {
+    const banner = el('div', 'timeline-vote-banner');
+    const anchor = link(node.banner.link_url, node.banner.link_label);
+    anchor.className = 'timeline-vote-banner-link';
+    banner.append(document.createTextNode(node.banner.prefix), anchor);
+    card.append(banner);
+  }
+  if (node.feature_summary) {
+    card.append(el(
+      'p',
+      'timeline-feature-summary',
+      `…and ${node.feature_summary.more.toLocaleString('en')} more features shipped this cycle`,
+    ));
+  }
+  if (node.quick_win) card.append(el('p', 'timeline-quick-win', node.quick_win));
+  article.append(card);
+  return article;
+}
+
+function appendOutcome(container, sections) {
+  for (const section of sections) {
+    container.append(document.createTextNode(section.label));
+    section.items.forEach((item, index) => {
+      if (index > 0) container.append(document.createTextNode(', '));
+      container.append(el('strong', '', item));
+    });
+  }
+}
+
+function createTimelineVoteResult(entry, index, maximum) {
+  const result = el('div', `timeline-vote-result${index >= 3 ? ' timeline-vote-result-dim' : ''}`);
+  result.dataset.voteResult = String(index);
+  const label = el('div', 'timeline-vote-result-label');
+  label.append(
+    el('span', 'timeline-vote-result-name', `${entry.medal ? `${entry.medal} ` : ''}${entry.title}`),
+    el('span', 'timeline-vote-result-value', `${entry.votes} · ${entry.percent}%`),
+  );
+  const bar = el('div', 'timeline-vote-bar');
+  const fill = el('div', `timeline-vote-bar-fill${index >= 3 ? ' timeline-vote-bar-fill-dim' : ''}`);
+  fill.style.width = `${Math.max(0, Math.min(100, (entry.votes / maximum) * 100))}%`;
+  bar.append(fill);
+  result.append(label, bar);
+  return result;
+}
+
+function setTimelineVoteExpanded(card, expanded) {
+  const results = [...card.querySelectorAll('[data-vote-result]')];
+  for (const result of results) {
+    result.hidden = !expanded && Number(result.dataset.voteResult) >= 4;
+  }
+  const toggle = card.querySelector('[data-vote-toggle]');
+  toggle.setAttribute('aria-expanded', String(expanded));
+  toggle.textContent = expanded ? 'Collapse ▴' : `${Math.max(0, results.length - 4)} more ▾`;
+  card.classList.toggle('is-expanded', expanded);
+}
+
+function createTimelineWhy(why) {
+  const aside = el('aside', 'timeline-why');
+  aside.append(el('span', 'timeline-why-label', why.label));
+  const copy = el('p');
+  for (const part of why.parts) {
+    copy.append(part.strong ? el('strong', '', part.text) : document.createTextNode(part.text));
+  }
+  aside.append(copy);
+  return aside;
+}
+
+function createTimelineVoteNode(node) {
+  const article = el('article', 'timeline-node timeline-node-vote');
+  article.dataset.timelineNode = node.id;
+  const card = el('div', 'timeline-vote-card');
+  const head = el('div', 'timeline-vote-head');
+  head.append(
+    el('h2', 'timeline-vote-title', node.title),
+    el('span', 'timeline-vote-meta', node.meta),
+  );
+  card.append(head);
+  const outcome = el('p', 'timeline-vote-outcome');
+  appendOutcome(outcome, node.outcome);
+  card.append(outcome);
+  if (node.open_url) {
+    const cta = link(node.open_url, node.open_label);
+    cta.className = 'timeline-vote-open';
+    card.append(cta);
+  } else {
+    const results = el('div', 'timeline-vote-results');
+    const maximum = Math.max(1, ...node.entries.map((entry) => entry.votes));
+    node.entries.forEach((entry, index) => results.append(createTimelineVoteResult(entry, index, maximum)));
+    card.append(results);
+    const toggle = el('button', 'timeline-vote-toggle');
+    toggle.type = 'button';
+    toggle.dataset.voteToggle = node.id;
+    toggle.setAttribute('aria-controls', `timeline-results-${node.id}`);
+    results.id = `timeline-results-${node.id}`;
+    toggle.addEventListener('click', () => {
+      setTimelineVoteExpanded(card, toggle.getAttribute('aria-expanded') !== 'true');
+    });
+    card.append(toggle);
+    setTimelineVoteExpanded(card, false);
+  }
+  if (node.note) card.append(el('p', 'timeline-vote-note', node.note));
+  if (node.why) card.append(createTimelineWhy(node.why));
+  article.append(card);
+  return article;
+}
+
+function createTimelineMilestoneNode(node) {
+  const article = el('article', 'timeline-node timeline-node-old timeline-node-milestone');
+  article.dataset.timelineNode = node.id;
+  const head = el('div', 'timeline-version-head');
+  head.append(
+    el('h2', 'timeline-version-title', node.title),
+    el('span', 'timeline-version-meta', node.date),
+  );
+  const card = el('div', `timeline-card${node.card_style === 'dim' ? ' timeline-card-dim' : ''}`);
+  card.append(el('p', 'timeline-origin-intro', node.intro));
+  if (node.quote) card.append(el('p', 'timeline-origin-quote', node.quote));
+  if (node.era) {
+    const era = el('p', 'timeline-origin-era');
+    era.append(document.createTextNode(node.era.prefix));
+    const strong = el('strong');
+    node.era.items.forEach((item, index) => {
+      if (index > 0) strong.append(document.createTextNode(' · '));
+      strong.append(item.italic ? el('em', '', item.text) : document.createTextNode(item.text));
+    });
+    era.append(strong, document.createTextNode(node.era.suffix));
+    card.append(era);
+  }
+  if (node.link) {
+    const anchor = link(node.link.url, node.link.label);
+    anchor.className = 'timeline-origin-link';
+    card.append(anchor);
+  }
+  article.append(head, card);
+  return article;
+}
+
+function createTimelineNode(node) {
+  if (node.type === 'version') return createTimelineVersionNode(node);
+  if (node.type === 'vote') return createTimelineVoteNode(node);
+  return createTimelineMilestoneNode(node);
+}
+
+function renderTimeline() {
+  const renderStarted = performance.now();
+  const fragment = document.createDocumentFragment();
+  fragment.append(createTimelineGoal(state.data.timeline.goal));
+  const timeline = el('div', 'timeline');
+  for (const year of state.data.timeline.years) {
+    const label = el('div', `timeline-year-label timeline-year-label-${year.tone}`);
+    label.append(el('span', 'timeline-year-tag', String(year.year)));
+    timeline.append(label);
+    const segment = el('section', `timeline-segment timeline-segment-${year.tone}`);
+    segment.setAttribute('aria-label', String(year.year));
+    segment.append(el('span', 'timeline-segment-line'));
+    for (const node of year.nodes) segment.append(createTimelineNode(node));
+    timeline.append(segment);
+  }
+  fragment.append(timeline);
+  elements.timelineRoot.replaceChildren(fragment);
+  elements.timelineRoot.setAttribute('aria-busy', 'false');
+  state.timelineRendered = true;
+  if (!performance.getEntriesByName('roadmap-render-timeline').length) {
+    performance.measure('roadmap-render-timeline', { start: renderStarted, end: performance.now() });
+  }
+}
+
+function scrollToRoadmapPost() {
+  const target = state.postTarget;
+  if (!target) return;
+  const article = document.querySelector(`#roadmap-post-${CSS.escape(target.id)}`);
+  if (!article) return;
+  state.postTarget = null;
+  article.classList.add('roadmap-post-target');
+  article.scrollIntoView({
+    behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'center',
+  });
+  article.focus({ preventScroll: true });
+  setTimeout(() => article.classList.remove('roadmap-post-target'), 1800);
+}
+
+function openTimelinePost(anchor) {
+  const view = anchor.dataset.roadmapView;
+  const id = anchor.dataset.roadmapPostId;
+  if (!state.data || !['open', 'shipped'].includes(view) || !id) return;
+  state.postTarget = { view, id };
+  if (view === 'open') {
+    state.openQuery = '';
+    state.openFilters.clear();
+    state.controversialOrder = false;
+    for (const input of [elements.openSearch, elements.stickySearch, elements.mobileSearch]) {
+      input.value = '';
+    }
+    showView('open');
+    renderOpen();
+  } else {
+    state.shippedQuery = '';
+    state.shippedFilters.clear();
+    for (const input of [
+      elements.shippedSearch,
+      elements.shippedStickySearch,
+      elements.shippedMobileSearch,
+    ]) input.value = '';
+    showView('shipped');
+    renderShipped();
+  }
+  syncFilterButtons();
+  history.replaceState(null, '', `#post-${id}`);
 }
 
 function appendFilterDefinitions(container, definitions, view) {
@@ -1077,7 +1374,7 @@ async function loadDeferredReactions(file) {
   patchReactionSlots(elements.shippedList, state.data.shipped);
 }
 
-function showView(view, { focus = false } = {}) {
+function showView(view, { focus = false, updateHash = true } = {}) {
   state.view = view;
   for (const tab of elements.tabs) {
     const selected = tab.dataset.view === view;
@@ -1088,11 +1385,20 @@ function showView(view, { focus = false } = {}) {
   for (const [name, panel] of Object.entries(elements.panels)) panel.hidden = name !== view;
   if (state.data && view === 'open' && !state.openRendered) renderOpen();
   if (state.data && view === 'shipped' && !state.shippedRendered) renderShipped();
+  if (state.data && view === 'timeline' && !state.timelineRendered) renderTimeline();
   if (state.data) {
     configureSheetFilters();
     syncSortButtons();
   }
-  history.replaceState(null, '', view === 'shipped' ? '#shipped' : location.pathname + location.search);
+  if (updateHash) {
+    history.replaceState(
+      null,
+      '',
+      view === 'timeline'
+        ? '#timeline'
+        : view === 'shipped' ? '#shipped' : location.pathname + location.search,
+    );
+  }
   requestAnimationFrame(() => positionTabIndicator(view));
 }
 
@@ -1155,9 +1461,7 @@ function installTabSwipe() {
       reset();
       return;
     }
-    const target = gesture.fromView === 'open' && deltaX < 0
-      ? 'shipped'
-      : gesture.fromView === 'shipped' && deltaX > 0 ? 'open' : null;
+    const target = adjacentTabView(gesture.fromView, deltaX < 0 ? 1 : -1);
     if (!target || Math.abs(deltaX) < 8 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
     gesture.active = true;
     elements.tabList.classList.add('is-dragging');
@@ -1294,6 +1598,12 @@ function syncBackToTop() {
 
 function wireControls() {
   installTabSwipe();
+  elements.timelineRoot.addEventListener('click', (event) => {
+    const anchor = event.target.closest('[data-roadmap-post-id]');
+    if (!anchor) return;
+    event.preventDefault();
+    openTimelinePost(anchor);
+  });
   elements.mobileVotingToggle.addEventListener('click', () => {
     const expanded = elements.votingExplanation.classList.toggle('mobile-collapsed') === false;
     elements.mobileVotingToggle.setAttribute('aria-expanded', String(expanded));
@@ -1302,9 +1612,14 @@ function wireControls() {
   for (const tab of elements.tabs) {
     tab.addEventListener('click', () => showView(tab.dataset.view));
     tab.addEventListener('keydown', (event) => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      showView(state.view === 'open' ? 'shipped' : 'open', { focus: true });
+      const target = event.key === 'Home'
+        ? 'open'
+        : event.key === 'End'
+          ? 'timeline'
+          : adjacentTabView(state.view, event.key === 'ArrowRight' ? 1 : -1);
+      if (target) showView(target, { focus: true });
     });
   }
   for (const input of [elements.openSearch, elements.stickySearch, elements.mobileSearch]) {
@@ -1371,7 +1686,7 @@ function wireControls() {
 
 async function load() {
   wireControls();
-  showView(state.view);
+  showView(state.view, { updateHash: state.pendingPostId === null });
   try {
     const jsonStarted = performance.now();
     const response = await fetch('./roadmap.json', { cache: 'no-store' });
@@ -1396,7 +1711,21 @@ async function load() {
     elements.freshness.title = new Date(state.data.generated_at).toLocaleString('en', { dateStyle: 'long', timeStyle: 'short' });
     const renderStarted = performance.now();
     renderContext();
-    if (state.view === 'shipped') renderShipped();
+    if (state.pendingPostId) {
+      const id = state.pendingPostId;
+      const view = state.data.open.some((item) => item.id === id)
+        ? 'open'
+        : state.data.shipped.some((item) => item.id === id) ? 'shipped' : null;
+      state.pendingPostId = null;
+      if (view) {
+        state.postTarget = { view, id };
+        showView(view, { updateHash: false });
+        history.replaceState(null, '', `#post-${id}`);
+      } else {
+        showView(state.view);
+      }
+    } else if (state.view === 'shipped') renderShipped();
+    else if (state.view === 'timeline') renderTimeline();
     else renderOpen();
     performance.measure('roadmap-render-total', { start: renderStarted, end: performance.now() });
     if (state.data.reactions_file) {
@@ -1411,6 +1740,8 @@ async function load() {
     elements.openList.setAttribute('aria-busy', 'false');
     elements.shippedList.replaceChildren(message.cloneNode(true));
     elements.shippedList.setAttribute('aria-busy', 'false');
+    elements.timelineRoot.replaceChildren(message.cloneNode(true));
+    elements.timelineRoot.setAttribute('aria-busy', 'false');
     elements.freshness.textContent = 'temporarily unavailable';
   }
 }

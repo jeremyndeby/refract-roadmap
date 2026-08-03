@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=4b5865774a53">
+  <link rel="stylesheet" href="./styles.css?v=498aa61791d6">
 </head>
 <body>
   <div class="spectrum" aria-hidden="true"></div>
@@ -75,10 +75,13 @@
 
       <nav class="tabs" id="roadmap-tabs" role="tablist" aria-label="Roadmap views">
         <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">
-          Open <span class="count" id="open-count">—</span>
+          💡 Open <span class="count" id="open-count">—</span>
         </button>
         <button class="tab" id="tab-shipped" role="tab" aria-selected="false" aria-controls="view-shipped" data-view="shipped" tabindex="-1">
-          Shipped <span class="count" id="shipped-count">—</span>
+          ✅ Shipped <span class="count" id="shipped-count">—</span>
+        </button>
+        <button class="tab" id="tab-timeline" role="tab" aria-selected="false" aria-controls="view-timeline" data-view="timeline" tabindex="-1">
+          📖 Timeline
         </button>
         <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
       </nav>
@@ -189,6 +192,12 @@
         <p class="result-count" id="shipped-result-count" aria-live="polite"></p>
         <div class="list shipped-list" id="shipped-list" aria-busy="true"></div>
       </section>
+
+      <section id="view-timeline" role="tabpanel" aria-labelledby="tab-timeline" hidden>
+        <div class="timeline-shell" id="timeline-root" aria-busy="true">
+          <p class="loading">Loading the Refract timeline…</p>
+        </div>
+      </section>
     </main>
 
     <div class="sheet-backdrop" id="filter-sheet" hidden>
@@ -246,6 +255,6 @@
   <button class="back-to-top" id="back-to-top" type="button" aria-label="Back to top" aria-hidden="true" tabindex="-1">↑</button>
 
   <noscript>This page needs JavaScript to load and sort the roadmap.</noscript>
-  <script type="module" src="./app.mjs?v=1f56bda495d5"></script>
+  <script type="module" src="./app.mjs?v=8042fda870fd"></script>
 </body>
 </html>
