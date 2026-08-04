@@ -6,6 +6,7 @@ import {
   globalPopularityRanks,
   groupShipped,
   hasStatus,
+  loadMatchingReactionPayload,
   nextFilterSelection,
   nextTeamNoteExpanded,
   reactionPillDisplay,
@@ -16,7 +17,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=e1d14ce5230f';
+} from './roadmap-logic.mjs?v=9f1736d0c43b';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -162,6 +163,7 @@ function discordThreadUrl(id) {
 function hydrateRoadmap(data) {
   const tagNames = Array.isArray(data.tag_names) ? data.tag_names : [];
   return {
+    generation_id: data.generation_id ?? null,
     generated_at: data.generated_at,
     trends_ready: data.trends_ready === true,
     periods: data.periods,
@@ -1424,9 +1426,25 @@ function configureFilters() {
 
 async function loadDeferredReactions(file) {
   const started = performance.now();
-  const response = await fetch(`./${file}`, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`Reaction data HTTP ${response.status}`);
-  const payload = await response.json();
+  const payload = await loadMatchingReactionPayload({
+    roadmapGenerationId: state.data.generation_id,
+    fetchPayload: async ({ refetch }) => {
+      const cacheBust = refetch
+        ? `?generation-retry=${encodeURIComponent(state.data.generation_id ?? 'missing')}`
+        : '';
+      const response = await fetch(`./${file}${cacheBust}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`Reaction data HTTP ${response.status}`);
+      return response.json();
+    },
+    onMismatch: (details) => console.warn(
+      '[roadmap] Asset generation mismatch; custom reaction pills withheld.',
+      details,
+    ),
+  });
+  if (!payload) {
+    performance.measure('roadmap-reactions-load', { start: started, end: performance.now() });
+    return;
+  }
   const reactions = payload?.reactions ?? {};
   for (const item of state.data.open) item.reactions = reactions[item.id] ?? [];
   for (const item of state.data.shipped) item.reactions = reactions[item.id] ?? [];

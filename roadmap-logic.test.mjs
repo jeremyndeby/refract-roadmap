@@ -7,6 +7,7 @@ import {
   discordAppThreadUrl,
   globalPopularityRanks,
   groupShipped,
+  loadMatchingReactionPayload,
   nextFilterSelection,
   nextTeamNoteExpanded,
   reactionPillDisplay,
@@ -155,6 +156,70 @@ test('une source sans total de famille conserve sa réaction violette brute', ()
     reactions: [{ emoji: '💜', count: 9 }],
   }), {
     visible: [{ emoji: '💜', count: 9, semantic: 'primary', official: false }],
+    hiddenCount: 0,
+  });
+});
+
+test('les réactions séparées sont acceptées immédiatement si la génération correspond', async () => {
+  let calls = 0;
+  const payload = { generation_id: 'generation-a', reactions: { one: [] } };
+  const result = await loadMatchingReactionPayload({
+    roadmapGenerationId: 'generation-a',
+    fetchPayload: async ({ attempt, refetch }) => {
+      calls++;
+      assert.deepEqual({ attempt, refetch }, { attempt: 1, refetch: false });
+      return payload;
+    },
+  });
+
+  assert.equal(result, payload);
+  assert.equal(calls, 1);
+});
+
+test('un écart de génération déclenche exactement un refetch puis accepte le match', async () => {
+  const attempts = [];
+  const mismatches = [];
+  const result = await loadMatchingReactionPayload({
+    roadmapGenerationId: 'generation-new',
+    fetchPayload: async (context) => {
+      attempts.push(context);
+      return {
+        generation_id: context.refetch ? 'generation-new' : 'generation-old',
+        reactions: {},
+      };
+    },
+    onMismatch: (details) => mismatches.push(details),
+  });
+
+  assert.equal(result.generation_id, 'generation-new');
+  assert.deepEqual(attempts, [
+    { attempt: 1, refetch: false },
+    { attempt: 2, refetch: true },
+  ]);
+  assert.deepEqual(mismatches, [{
+    attempt: 1,
+    roadmapGenerationId: 'generation-new',
+    reactionsGenerationId: 'generation-old',
+  }]);
+});
+
+test('un écart persistant rend roadmap.json seul sans réactions custom', async () => {
+  const mismatches = [];
+  let calls = 0;
+  const result = await loadMatchingReactionPayload({
+    roadmapGenerationId: 'generation-new',
+    fetchPayload: async () => {
+      calls++;
+      return { generation_id: 'generation-old', reactions: { one: [{ emoji: '🔥', count: 99 }] } };
+    },
+    onMismatch: (details) => mismatches.push(details),
+  });
+
+  assert.equal(result, null);
+  assert.equal(calls, 2);
+  assert.equal(mismatches.length, 2);
+  assert.deepEqual(reactionPillDisplay({ votes: 42, reactions: [] }), {
+    visible: [{ emoji: '💜', count: 42, semantic: 'primary', official: true }],
     hiddenCount: 0,
   });
 });
