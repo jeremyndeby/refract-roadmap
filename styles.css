@@ -976,7 +976,7 @@ body.sheet-open { overflow: hidden; }
 .timeline-card-dim { border-style: dashed; background: #31363F; }
 .timeline-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) max-content max-content;
   gap: 7px;
   align-items: center;
   padding: 5px 0;
@@ -989,9 +989,24 @@ body.sheet-open { overflow: hidden; }
 .timeline-item-link, .timeline-item-link:visited { color: var(--text); text-decoration: none; }
 .timeline-item-link:hover { color: var(--text-bright); text-decoration: underline; }
 .timeline-item-link-mark { color: #A29BFE; font-size: 11px; }
-.timeline-pick { color: #A29BFE; font-size: 9.5px; white-space: nowrap; }
-.timeline-delay { color: var(--warm); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+.timeline-pick {
+  grid-column: 3;
+  justify-self: end;
+  color: #A29BFE;
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.timeline-delay {
+  grid-column: 3;
+  justify-self: end;
+  color: var(--warm);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .timeline-status {
+  grid-column: 4;
+  justify-self: end;
   padding: 1px 7px;
   border-radius: 999px;
   font-size: 10px;

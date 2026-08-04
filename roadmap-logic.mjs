@@ -123,6 +123,37 @@ export function reactionPillDisplay(item, { limit = 3 } = {}) {
   };
 }
 
+export async function loadMatchingReactionPayload({
+  roadmapGenerationId,
+  fetchPayload,
+  onMismatch = () => {},
+} = {}) {
+  if (typeof fetchPayload !== 'function') {
+    throw new TypeError('fetchPayload must be a function');
+  }
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const payload = await fetchPayload({ attempt, refetch: attempt === 2 });
+    const reactionsGenerationId = typeof payload?.generation_id === 'string'
+      ? payload.generation_id
+      : null;
+    if (
+      typeof roadmapGenerationId === 'string' &&
+      roadmapGenerationId.length > 0 &&
+      reactionsGenerationId === roadmapGenerationId
+    ) {
+      return payload;
+    }
+    onMismatch({
+      attempt,
+      roadmapGenerationId: roadmapGenerationId ?? null,
+      reactionsGenerationId,
+    });
+  }
+
+  return null;
+}
+
 export function resolveTabSwipe({
   view,
   deltaX,
