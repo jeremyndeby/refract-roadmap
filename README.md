@@ -21,3 +21,5 @@ seven days. The history displays as unavailable until the private generator has
 accumulated a full week of snapshots. `🔥 Hottest` sorts by this recent change;
 the initial hot badge threshold is 10 gained votes and will be calibrated once
 real weekly data is available.
+
+Publisher recovery exercise performed against the protected branch on 2026-08-10.
