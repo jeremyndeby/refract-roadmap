@@ -12,11 +12,6 @@ export function etaLabel(eta) {
   return Object.hasOwn(ETA_LABELS, eta) ? ETA_LABELS[eta] : null;
 }
 
-const TIMELINE_STATUS_LABELS = Object.freeze({
-  progress: 'In Progress',
-  planned: 'Planned',
-});
-
 const STATUS_PILLS = Object.freeze({
   'In Progress': Object.freeze({
     kind: 'progress',
@@ -39,17 +34,4 @@ export function statusPillMarkup({ collection = 'open', status, eta }) {
   if (!publicEtaLabel) return `<span class="${className}">${pill.label}</span>`;
 
   return `<span class="${className} status-badge-with-eta"><span class="status-badge-label">${pill.label}</span><span class="eta-badge">${publicEtaLabel}</span></span>`;
-}
-
-export function timelineStatusForPost(timeline, postId) {
-  const expectedId = String(postId);
-  for (const year of timeline?.years ?? []) {
-    for (const node of year.nodes ?? []) {
-      for (const item of node.items ?? []) {
-        if (item.post?.view !== 'open' || String(item.post?.id) !== expectedId) continue;
-        return TIMELINE_STATUS_LABELS[item.status?.kind] ?? null;
-      }
-    }
-  }
-  return null;
 }
