@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { statusPillMarkup, timelineStatusForPost } from './eta-pill.mjs';
+import { statusPillMarkup } from './eta-pill.mjs';
 
 const BEFORE_ETA_IN_PROGRESS_HTML = '<span class="edge-badge status-badge status-badge-progress">🚧 In Progress</span>';
 const BEFORE_ETA_PLANNED_HTML = '<span class="edge-badge status-badge status-badge-planned">📋 Planned</span>';
@@ -49,20 +49,4 @@ test('les sept clés ETA rendent uniquement leur libellé public stable', () => 
     assert.match(html, new RegExp(`<span class="eta-badge">${label}</span>`));
     assert.equal(html.includes(eta), false);
   }
-});
-
-test('un statut Timeline explicite complète une carte ETA dont le tag de statut manque', () => {
-  const timeline = {
-    years: [{
-      nodes: [{
-        items: [{
-          post: { id: 'custom-posters', view: 'open' },
-          status: { kind: 'progress', label: '🚧 in progress' },
-        }],
-      }],
-    }],
-  };
-
-  assert.equal(timelineStatusForPost(timeline, 'custom-posters'), 'In Progress');
-  assert.equal(timelineStatusForPost(timeline, 'missing'), null);
 });

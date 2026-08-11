@@ -18,7 +18,7 @@ import {
   startDiscordDeeplink,
   tagBaseName,
 } from './roadmap-logic.mjs?v=9f1736d0c43b';
-import { etaLabel, statusPillMarkup, timelineStatusForPost } from './eta-pill.mjs?v=3';
+import { statusPillMarkup } from './eta-pill.mjs?v=4';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -731,10 +731,7 @@ function createOpenRow(item, rank) {
   article.tabIndex = -1;
   article.dataset.rank = String(rank);
   article.append(createRankBadge(rank, item));
-  const taggedStatus = inProgress ? IN_PROGRESS_STATUS : planned ? PLANNED_STATUS : null;
-  const status = taggedStatus ?? (etaLabel(item.eta)
-    ? timelineStatusForPost(state.data.timeline, item.id)
-    : null);
+  const status = inProgress ? IN_PROGRESS_STATUS : planned ? PLANNED_STATUS : null;
   if (status) {
     article.insertAdjacentHTML('beforeend', statusPillMarkup({ status, eta: item.eta }));
   }
