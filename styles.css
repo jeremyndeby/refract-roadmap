@@ -470,8 +470,34 @@ button:focus-visible, input:focus-visible, a:focus-visible, [role='button']:focu
 .rank-movement { margin-left: 5px; font-size: 0.9em; }
 .rank-movement.positive { color: #55EFC4; }
 .rank-movement.negative { color: #FFB3B3; }
-.status-badge-progress, .delivery-badge-express { border-color: var(--warm); color: var(--warm); }
-.status-badge-planned { border-color: var(--planned); color: #70B9F4; }
+.status-badge-progress {
+  --status-color: var(--warm);
+  border-color: var(--warm);
+  color: var(--warm);
+}
+.status-badge-planned {
+  --status-color: var(--planned);
+  border-color: var(--planned);
+  color: #70B9F4;
+}
+.status-badge-with-eta {
+  align-items: stretch;
+  overflow: hidden;
+  padding: 0;
+}
+.status-badge-label, .eta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.eta-badge {
+  border-left: 1px solid var(--status-color);
+  background: color-mix(in srgb, var(--status-color) 12%, var(--transparent));
+  color: color-mix(in srgb, var(--status-color) 68%, var(--text-secondary));
+  font-weight: 600;
+}
+.delivery-badge-express { border-color: var(--warm); color: var(--warm); }
 .delivery-badge-worth-wait { border-color: var(--primary); color: var(--primary-light); }
 .delivery-badge-neutral { border-color: var(--border); color: var(--text-secondary); }
 .delivery-badge-beat { border-color: #A29BFE; color: #C8C4FF; }
@@ -1407,6 +1433,9 @@ noscript { display: block; padding: 20px; color: var(--text); text-align: center
   .trend-arrow { width: 10px; height: 10px; }
   .trend-period { font-size: 7px; letter-spacing: 0.04em; }
   .rank-badge, .edge-badge { top: -10px; min-height: 21px; padding: 3px 7px; font-size: 9px; }
+  .status-badge-with-eta { padding: 0; }
+  .status-badge-with-eta .status-badge-label,
+  .status-badge-with-eta .eta-badge { padding: 3px 7px; }
   .rank-badge { left: 10px; }
   .edge-badge { right: 10px; left: auto; }
   .vote-label { font-size: 8px; }
