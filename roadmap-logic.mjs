@@ -213,7 +213,7 @@ export function tagBaseName(tag) {
 
 export function hasStatus(item, status) {
   const expected = String(status).toLocaleLowerCase('en');
-  return item.tags.some((tag) => tagBaseName(tag).toLocaleLowerCase('en') === expected);
+  return String(item?.status ?? '').toLocaleLowerCase('en') === expected;
 }
 
 export function isControversial(item) {

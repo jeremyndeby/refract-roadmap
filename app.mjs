@@ -18,7 +18,7 @@ import {
   startDiscordDeeplink,
   tagBaseName,
 } from './roadmap-logic.mjs?v=9f1736d0c43b';
-import { statusPillMarkup } from './eta-pill.mjs?v=4';
+import { statusPillMarkup } from './eta-pill.mjs?v=5';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
 const INITIAL_OPEN_ROWS = 25;
@@ -352,8 +352,6 @@ const TAG_COLORS = Object.freeze({
   'Import / Export': '#81ECEC',
   Movies: { accent: '#0984E3', text: '#A8D8FF' },
   Notifications: '#FDCB6E',
-  'In Progress': '#FDCB6E',
-  Planned: { accent: '#3498DB', text: '#A9DCFF' },
   Profile: '#55EFC4',
   Settings: '#D6A2E8',
   Social: '#00CEC9',
@@ -363,20 +361,6 @@ const TAG_COLORS = Object.freeze({
 
 function tagColor(tag) {
   return TAG_COLORS[tagBaseName(tag)] ?? '#B2BEC3';
-}
-
-function statusOfTag(tag) {
-  const base = tagBaseName(tag).toLocaleLowerCase('en');
-  if (base === IN_PROGRESS_STATUS.toLocaleLowerCase('en')) return 'in-progress';
-  if (base === PLANNED_STATUS.toLocaleLowerCase('en')) return 'planned';
-  return null;
-}
-
-function displayStatusTag(tag) {
-  const status = statusOfTag(tag);
-  if (status === 'in-progress' && !String(tag).includes('🚧')) return `🚧 ${tagBaseName(tag)}`;
-  if (status === 'planned' && !String(tag).includes('📋')) return `📋 ${tagBaseName(tag)}`;
-  return tag;
 }
 
 function setChipColor(node, color) {
@@ -773,13 +757,9 @@ function createOpenRow(item, rank) {
   body.append(createReactionSlot(item));
 
   const chips = el('div', 'chips');
-  const orderedTags = [...item.tags].sort((a, b) =>
-    Number(Boolean(statusOfTag(b))) - Number(Boolean(statusOfTag(a))) ||
-    Number(statusOfTag(b) === 'in-progress') - Number(statusOfTag(a) === 'in-progress'),
-  );
-  for (const tag of orderedTags) {
-    if (tagBaseName(tag) === 'From App' || statusOfTag(tag)) continue;
-    chips.append(createFilterChip(displayStatusTag(tag), `tag:${tag}`, tagColor(tag)));
+  for (const tag of item.tags) {
+    if (tagBaseName(tag) === 'From App') continue;
+    chips.append(createFilterChip(tag, `tag:${tag}`, tagColor(tag)));
   }
   body.append(chips);
 
@@ -1350,7 +1330,7 @@ function appendFilterDefinitions(container, definitions, view) {
 }
 
 function appendTagDefinitions(container, view, { expanded = true, withMore = false } = {}) {
-  const publicTags = state.data.tag_names.filter((tag) => !statusOfTag(tag));
+  const publicTags = state.data.tag_names;
   const fragment = document.createDocumentFragment();
   publicTags.forEach((tag, index) => {
     const chip = createFilterChip(tag, `tag:${tag}`, tagColor(tag), '', { view });
