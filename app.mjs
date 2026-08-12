@@ -327,7 +327,8 @@ function renderPeriodMetric(metric, valueNode, deltaNode) {
   const delta = metric?.delta;
   deltaNode.className = 'period-delta';
   if (!delta?.ready) {
-    deltaNode.textContent = '—';
+    deltaNode.classList.add('sr-only');
+    deltaNode.textContent = 'Comparison not available yet';
     deltaNode.setAttribute('aria-label', 'Comparison not available yet');
     return;
   }
