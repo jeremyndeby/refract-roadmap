@@ -196,7 +196,10 @@ function hydrateRoadmap(data) {
       tags: item.tags.map((index) => tagNames[index]).filter(Boolean),
       month: item.released_at?.slice(0, 7) ?? null,
       released_at: item.released_at ?? null,
-      url: item.discord_alive === true ? discordThreadUrl(item.id) : null,
+      // Shipped threads are subject to the weekly cleanup.  They are historical
+      // roadmap records, not voting destinations, so a card must never expose a
+      // Discord URL whose availability varies with cleanup timing.
+      url: null,
     })),
   };
 }
@@ -909,18 +912,9 @@ function createShippedRow(item, maxVotes) {
 
   const body = el('div', 'body');
   const heading = el('h2');
-  if (item.discord_alive && item.url) {
-    const titleLink = link(item.url, '');
-    titleLink.className = 'shipped-title-link';
-    titleLink.dataset.discordThreadId = item.id;
-    titleLink.append(
-      document.createTextNode(`${item.title} `),
-      el('span', 'shipped-title-link-mark', '↗'),
-    );
-    heading.append(titleLink);
-  } else {
-    heading.append(el('span', '', item.title));
-  }
+  // A Shipped card is deliberately non-navigable even while its source thread
+  // still exists.  Cleanup must not produce two different public experiences.
+  heading.append(el('span', '', item.title));
   body.append(heading, createDescription(item.excerpt));
 
   const meta = el('div', 'meta');
@@ -971,7 +965,7 @@ function createShippedRow(item, maxVotes) {
   });
   if (meta.childNodes.length > 0) body.append(meta);
 
-  body.append(createReactionSlot(item, { commentsEnabled: item.discord_alive }));
+  body.append(createReactionSlot(item, { commentsEnabled: false }));
 
   const chips = el('div', 'chips');
   for (const tag of item.tags) {
