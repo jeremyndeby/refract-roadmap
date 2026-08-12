@@ -183,7 +183,11 @@ export function isHot(item, threshold = HOT_DELTA_THRESHOLD) {
 function includesQuery(item, query, includeExcerpt = false) {
   const needle = query.trim().toLocaleLowerCase('en');
   if (!needle) return true;
-  const haystack = includeExcerpt ? `${item.title} ${item.excerpt ?? ''}` : item.title;
+  // Includes is search-only metadata. It has the same matching role as the
+  // description, never outranking the title or appearing in the card UI.
+  const haystack = includeExcerpt
+    ? `${item.title} ${item.excerpt ?? ''} ${item.includes ?? ''}`
+    : item.title;
   return haystack.toLocaleLowerCase('en').includes(needle);
 }
 
