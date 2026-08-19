@@ -7,6 +7,7 @@ import {
   groupShipped,
   hasStatus,
   loadMatchingReactionPayload,
+  monthLabel,
   nextFilterSelection,
   nextTeamNoteExpanded,
   reactionPillDisplay,
@@ -17,7 +18,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=153476b9ca93';
+} from './roadmap-logic.mjs?v=2ac41041ed3a';
 import { statusPillMarkup } from './eta-pill.mjs?v=e80706e52ef3';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
@@ -196,6 +197,7 @@ function hydrateRoadmap(data) {
       tags: item.tags.map((index) => tagNames[index]).filter(Boolean),
       month: item.released_at?.slice(0, 7) ?? null,
       released_at: item.released_at ?? null,
+      shipped_in: item.shipped_in ?? null,
       // Shipped threads are subject to the weekly cleanup.  They are historical
       // roadmap records, not voting destinations, so a card must never expose a
       // Discord URL whose availability varies with cleanup timing.
@@ -933,6 +935,24 @@ function createShippedRow(item, maxVotes) {
       build.title = `Build ${item.build}`;
       build.setAttribute('aria-label', `Build ${item.build}`);
       shipped.append(build);
+    }
+    metaParts.push(shipped);
+  } else if (item.shipped_in) {
+    const shipped = el('span', 'version-meta');
+    shipped.append(document.createTextNode('shipped in '));
+    if (/^V\d+(?:\.\d+)+$/u.test(item.shipped_in)) {
+      const cycleChip = el('span', 'version-chip', item.shipped_in);
+      cycleChip.title = `Cycle ${item.shipped_in}`;
+      cycleChip.setAttribute('aria-label', `Cycle ${item.shipped_in}`);
+      shipped.append(cycleChip);
+      if (item.build) {
+        const build = el('span', 'version-build', item.build);
+        build.title = `Build ${item.build}`;
+        build.setAttribute('aria-label', `Build ${item.build}`);
+        shipped.append(build);
+      }
+    } else {
+      shipped.append(document.createTextNode(monthLabel(item.shipped_in)));
     }
     metaParts.push(shipped);
   }

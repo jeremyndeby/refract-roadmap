@@ -380,16 +380,21 @@ export function groupShipped(items, options = {}) {
 
   const groups = new Map();
   for (const item of selected) {
-    const key = item.month ?? EARLIER;
+    const explicit = /^(?:V\d+(?:\.\d+)+|\d{4}-(?:0[1-9]|1[0-2]))$/u.test(
+      String(item.shipped_in ?? ''),
+    ) ? item.shipped_in : null;
+    const key = explicit ?? item.month ?? EARLIER;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
 
   return [...groups.keys()].map((key) => ({
     key,
-    label: monthLabel(key === EARLIER ? null : key),
+    label: /^V\d+(?:\.\d+)+$/u.test(key)
+      ? key
+      : monthLabel(key === EARLIER ? null : key),
     earlier: key === EARLIER,
     ungrouped: false,
     items: groups.get(key),
-  }));
+  })).sort((a, b) => Number(a.earlier) - Number(b.earlier));
 }
