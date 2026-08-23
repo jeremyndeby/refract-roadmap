@@ -383,7 +383,10 @@ export function groupShipped(items, options = {}) {
     const explicit = /^(?:V\d+(?:\.\d+)+|\d{4}-(?:0[1-9]|1[0-2]))$/u.test(
       String(item.shipped_in ?? ''),
     ) ? item.shipped_in : null;
-    const key = explicit ?? item.month ?? EARLIER;
+    // A trusted editorial release date remains the chronological source of
+    // truth. An explicit version is still shown on the card, but must not pull
+    // a dated shipment out of its release month.
+    const key = item.month ?? explicit ?? EARLIER;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
