@@ -17,6 +17,14 @@ test('Shipped in classe par version ou mois et garde Earlier en dernier', () => 
     { ...base, id: '2' },
     { ...base, id: '3', shipped_in: '2026-08' },
     { ...base, id: '4', released_at: '2026-07-14', month: '2026-07' },
+    {
+      ...base,
+      id: '5',
+      shipped_in: 'V1.6',
+      released_at: '2026-08-18',
+      month: '2026-08',
+      build: 'v1.6.714',
+    },
   ];
   const groups = groupShipped(items, { generatedAt: '2026-08-19T12:00:00Z' });
   assert.equal(groups.at(-1).key, EARLIER);
@@ -25,7 +33,7 @@ test('Shipped in classe par version ou mois et garde Earlier en dernier', () => 
     ids: group.items.map((item) => item.id),
   }])), {
     '2026-07': { label: 'July 2026', ids: ['4'] },
-    '2026-08': { label: 'August 2026', ids: ['3'] },
+    '2026-08': { label: 'August 2026', ids: ['5', '3'] },
     'V1.6': { label: 'V1.6', ids: ['1'] },
     [EARLIER]: { label: EARLIER, ids: ['2'] },
   });
