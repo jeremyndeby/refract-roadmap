@@ -18,7 +18,7 @@ import {
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=2ac41041ed3a';
+} from './roadmap-logic.mjs?v=7f4d0feccbcc';
 import { statusPillMarkup } from './eta-pill.mjs?v=e80706e52ef3';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
