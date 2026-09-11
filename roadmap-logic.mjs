@@ -365,6 +365,12 @@ export function globalPopularityRanks(items) {
   );
 }
 
+// Display values are derived by the shared exporter/Discord helper, never written
+// back to the semantic fields. Fallback supports older, still-cached JSON.
+export function releaseDisplay(item, source) {
+  return item[`${source}_display`] ?? item[source];
+}
+
 export function groupShipped(items, options = {}) {
   const sort = options.sort ?? 'date';
   const selected = selectShipped(items, options);
@@ -386,7 +392,9 @@ export function groupShipped(items, options = {}) {
     // A trusted editorial release date remains the chronological source of
     // truth. An explicit version is still shown on the card, but must not pull
     // a dated shipment out of its release month.
-    const key = item.month ?? explicit ?? EARLIER;
+    // Only undated cards merge across patch/build versions; dates always win.
+    const key = item.released_at?.slice(0, 7) ?? item.month ??
+      (explicit ? releaseDisplay(item, 'shipped_in') : null) ?? EARLIER;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }

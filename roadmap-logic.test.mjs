@@ -1,7 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { EARLIER, groupShipped, roadmapContext } from './roadmap-logic.mjs';
+import { EARLIER, groupShipped, roadmapContext, releaseDisplay } from './roadmap-logic.mjs';
+
+test('normalized version groups merge only undated cards and preserve all semantic values', () => {
+  const items = [
+    { id: 'a', title: 'A', shipped_in: 'V1.6.720', shipped_in_display: 'V1.6' },
+    { id: 'b', title: 'B', shipped_in: 'V1.6.721', shipped_in_display: 'V1.6' },
+    { id: 'c', title: 'C', shipped_in: 'V1.6', shipped_in_display: 'V1.6' },
+    { id: 'd', title: 'D', shipped_in: 'V1.6.720', shipped_in_display: 'V1.6', released_at: '2026-08-01', month: '2026-08' },
+    { id: 'e', title: 'E', shipped_in: '2026-07', shipped_in_display: '2026-07' },
+  ];
+  const before = structuredClone(items);
+  const groups = groupShipped(items);
+  assert.equal(groups.filter(g => g.key === 'V1.6').length, 1);
+  assert.equal(groups.find(g => g.key === 'V1.6').items.length, 3);
+  assert.equal(groups.find(g => g.key === 'V1.6').label, 'V1.6');
+  assert.equal(groups.find(g => g.key === '2026-08').items[0].id, 'd');
+  assert.equal(groups.find(g => g.key === '2026-07').items[0].id, 'e');
+  assert.deepEqual(items, before);
+});
+
+test('badge consumes derived display and safely supports older cached JSON', () => {
+  for (const source of ['shipped_in', 'cycle']) {
+    assert.equal(releaseDisplay({ [source]: 'V1.6.720', [`${source}_display`]: 'V1.6' }, source), 'V1.6');
+    assert.equal(releaseDisplay({ [source]: 'V1.6.720' }, source), 'V1.6.720');
+  }
+});
 
 const base = {
   title: 'Feature',

@@ -12,13 +12,14 @@ import {
   nextTeamNoteExpanded,
   reactionPillDisplay,
   relativeAge,
+  releaseDisplay,
   roadmapContext,
   resolveTabSwipe,
   selectOpen,
   shouldAttemptDiscordDeeplink,
   startDiscordDeeplink,
   tagBaseName,
-} from './roadmap-logic.mjs?v=7f4d0feccbcc';
+} from './roadmap-logic.mjs?v=557a63c64c6c';
 import { statusPillMarkup } from './eta-pill.mjs?v=e80706e52ef3';
 
 const DISCORD_GUILD_ID = '1490347491151970366';
@@ -911,9 +912,10 @@ function createShippedRow(item, maxVotes) {
       buildChip.setAttribute('aria-label', `Build ${item.build}`);
       since.append(buildChip);
     } else if (item.cycle) {
-      const cycleChip = el('span', 'version-chip', item.cycle);
-      cycleChip.title = `Cycle ${item.cycle}`;
-      cycleChip.setAttribute('aria-label', `Cycle ${item.cycle}`);
+      const label = releaseDisplay(item, 'cycle');
+      const cycleChip = el('span', 'version-chip', label);
+      cycleChip.title = `Cycle ${label}`;
+      cycleChip.setAttribute('aria-label', `Cycle ${label}`);
       since.append(cycleChip);
     }
     metaParts.push(since);
@@ -941,9 +943,10 @@ function createShippedRow(item, maxVotes) {
     const shipped = el('span', 'version-meta');
     shipped.append(document.createTextNode('shipped in '));
     if (/^V\d+(?:\.\d+)+$/u.test(item.shipped_in)) {
-      const cycleChip = el('span', 'version-chip', item.shipped_in);
-      cycleChip.title = `Cycle ${item.shipped_in}`;
-      cycleChip.setAttribute('aria-label', `Cycle ${item.shipped_in}`);
+      const label = releaseDisplay(item, 'shipped_in');
+      const cycleChip = el('span', 'version-chip', label);
+      cycleChip.title = `Cycle ${label}`;
+      cycleChip.setAttribute('aria-label', `Cycle ${label}`);
       shipped.append(cycleChip);
       if (item.build) {
         const build = el('span', 'version-build', item.build);
