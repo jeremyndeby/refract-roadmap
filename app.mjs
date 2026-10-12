@@ -923,41 +923,22 @@ function createShippedRow(item, maxVotes) {
     const age = relativeAge(item.created_at, state.data.generated_at);
     metaParts.push(el('span', '', `posted ${formatDay(item.created_at)}${age ? ` · ${age}` : ''}`));
   }
-  if (!item.beat_to_it && item.released_at) {
-    const shipped = el('span', 'version-meta');
-    shipped.append(document.createTextNode(`shipped ${formatDay(item.released_at)}`));
-    if (item.cycle) {
-      const cycleChip = el('span', 'version-chip', item.cycle);
-      cycleChip.title = `Cycle ${item.cycle}`;
-      cycleChip.setAttribute('aria-label', `Cycle ${item.cycle}`);
-      shipped.append(cycleChip);
-    }
-    if (item.build) {
-      const build = el('span', 'version-build', item.build);
-      build.title = `Build ${item.build}`;
-      build.setAttribute('aria-label', `Build ${item.build}`);
-      shipped.append(build);
-    }
-    metaParts.push(shipped);
-  } else if (item.shipped_in) {
+  const shippedBuild = releaseDisplay(item, 'shipped_in');
+  if (shippedBuild) {
     const shipped = el('span', 'version-meta');
     shipped.append(document.createTextNode('shipped in '));
-    if (/^V\d+(?:\.\d+)+$/u.test(item.shipped_in)) {
-      const label = releaseDisplay(item, 'shipped_in');
-      const cycleChip = el('span', 'version-chip', label);
-      cycleChip.title = `Cycle ${label}`;
-      cycleChip.setAttribute('aria-label', `Cycle ${label}`);
-      shipped.append(cycleChip);
-      if (item.build) {
-        const build = el('span', 'version-build', item.build);
-        build.title = `Build ${item.build}`;
-        build.setAttribute('aria-label', `Build ${item.build}`);
-        shipped.append(build);
-      }
+    if (/^[vV]\d+(?:\.\d+)+$/u.test(shippedBuild)) {
+      const buildChip = el('span', 'version-chip', shippedBuild);
+      buildChip.title = `Build ${shippedBuild}`;
+      buildChip.setAttribute('aria-label', `Build ${shippedBuild}`);
+      shipped.append(buildChip);
     } else {
-      shipped.append(document.createTextNode(monthLabel(item.shipped_in)));
+      shipped.append(document.createTextNode(monthLabel(shippedBuild)));
     }
     metaParts.push(shipped);
+  }
+  if (!item.beat_to_it && item.released_at) {
+    metaParts.push(el('span', '', `shipped ${formatDay(item.released_at)}`));
   }
   if (!item.discord_alive) {
     metaParts.push(el('span', 'archived-chip meta-archived', '📦 Archived'));

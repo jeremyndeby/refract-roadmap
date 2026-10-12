@@ -368,6 +368,10 @@ export function globalPopularityRanks(items) {
 // Display values are derived by the shared exporter/Discord helper, never written
 // back to the semantic fields. Fallback supports older, still-cached JSON.
 export function releaseDisplay(item, source) {
+  if (source === 'shipped_in') {
+    const value = item.build ?? item.shipped_in;
+    return /^[vV]\d+\.\d+\.\d+$/u.test(value ?? '') ? value.replace(/^V/u, 'v') : value;
+  }
   return item[`${source}_display`] ?? item[source];
 }
 
@@ -386,24 +390,15 @@ export function groupShipped(items, options = {}) {
 
   const groups = new Map();
   for (const item of selected) {
-    const explicit = /^(?:V\d+(?:\.\d+)+|\d{4}-(?:0[1-9]|1[0-2]))$/u.test(
-      String(item.shipped_in ?? ''),
-    ) ? item.shipped_in : null;
-    // A trusted editorial release date remains the chronological source of
-    // truth. An explicit version is still shown on the card, but must not pull
-    // a dated shipment out of its release month.
-    // Only undated cards merge across patch/build versions; dates always win.
-    const key = item.released_at?.slice(0, 7) ?? item.month ??
-      (explicit ? releaseDisplay(item, 'shipped_in') : null) ?? EARLIER;
+    const key = /^\d{4}-\d{2}-\d{2}$/u.test(item.released_at ?? '')
+      ? item.released_at.slice(0, 7) : EARLIER;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
 
   return [...groups.keys()].map((key) => ({
     key,
-    label: /^V\d+(?:\.\d+)+$/u.test(key)
-      ? key
-      : monthLabel(key === EARLIER ? null : key),
+    label: monthLabel(key === EARLIER ? null : key),
     earlier: key === EARLIER,
     ungrouped: false,
     items: groups.get(key),
