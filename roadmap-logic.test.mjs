@@ -146,9 +146,17 @@ test('displayed day takes precedence over hours and missing hours stay within th
 });
 
 
-test('real 262-item metadata snapshot has no displayed-day inversions and every hour matches Paris', () => {
-  // Real date/time/version/heart values; titles and original IDs removed.
-  const rows = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+test('real public dates stay monotonic with synthetic test-only hours matching Paris', () => {
+  // Only already-public date/version/heart values are stored in the JSON.
+  // Titles and IDs are fictional. Hours below are synthetic test inputs,
+  // never copied from a tag observation or release announcement.
+  const snapshot = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+  const rows = snapshot.map((row, index) => ({
+    ...row,
+    shipped_at: row.released_at && index % 3 !== 0
+      ? `${row.released_at}T${String(8 + index % 10).padStart(2, '0')}:00:00.000Z`
+      : null,
+  }));
   assert.equal(rows.length, 262);
   const sorted = selectShipped(rows);
   let previous = '9999-12-31';
@@ -163,4 +171,17 @@ test('real 262-item metadata snapshot has no displayed-day inversions and every 
     ['2026-10', 7], ['2026-09', 50], ['2026-08', 89], ['2026-07', 17],
     ['2026-06', 17], ['2026-05', 11], ['2026-04', 20], [EARLIER, 51],
   ]);
+});
+
+
+test('public metadata fixture has fictional identities and only previously public fields', () => {
+  const snapshot = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+  const allowed = new Set(['id', 'title', 'tags', 'released_at', 'shipped_in', 'requested_by']);
+  for (const row of snapshot) {
+    assert(Object.keys(row).every(key => allowed.has(key)));
+    assert.match(row.id, /^[1-9]\d{0,2}$/u);
+    assert.equal(row.title, `Fixture ${row.id}`);
+    assert.deepEqual(row.tags, []);
+    assert.equal(Object.hasOwn(row, 'shipped_at'), false);
+  }
 });
