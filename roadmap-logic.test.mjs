@@ -1,7 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { EARLIER, groupShipped, roadmapContext, releaseDisplay } from './roadmap-logic.mjs';
+import { EARLIER, groupShipped, roadmapContext, releaseDisplay, selectShipped } from './roadmap-logic.mjs';
+
+test('default Shipped order uses hours before popularity and numeric builds for ties', () => {
+  const rows = [
+    { id: 'early', title: 'Early', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T08:00:00.000Z', requested_by: 99 },
+    { id: '99', title: 'A', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T16:00:00.000Z', shipped_in: 'v1.6.99' },
+    { id: '100', title: 'Z', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T16:00:00.000Z', shipped_in: 'v1.6.100' },
+    { id: 'unknown', title: 'Unknown hour', tags: [], released_at: '2026-09-18', shipped_in: 'v1.6.101' },
+  ];
+  const before = structuredClone(rows);
+  assert.deepEqual(selectShipped(rows).map(x => x.id), ['100', '99', 'early', 'unknown']);
+  assert.deepEqual(selectShipped(rows, { sort: 'date' }).map(x => x.id), ['early', '99', 'unknown', '100']);
+  assert.equal(selectShipped(rows, { sort: 'popularity' })[0].id, 'early');
+  assert.deepEqual(rows, before);
+});
+
+test('month groups and Earlier remain ordered when release timestamps belong to older months', () => {
+  const rows = [
+    { id: 'sep', title: 'September', tags: [], released_at: '2026-09-01', shipped_at: '2026-09-01T12:00:00.000Z' },
+    { id: 'oct', title: 'October', tags: [], released_at: '2026-10-01', shipped_at: '2026-08-01T12:00:00.000Z' },
+    { id: 'old', title: 'Earlier', tags: [] },
+  ];
+  assert.deepEqual(groupShipped(rows).map(x => x.key), ['2026-10', '2026-09', EARLIER]);
+  assert.deepEqual(groupShipped(rows, { direction: 'asc' }).map(x => x.key), ['2026-09', '2026-10', EARLIER]);
+  assert.equal(selectShipped([{ ...rows[0], shipped_at: 'invalid' }])[0].id, 'sep');
+});
 
 test('monthly grouping ignores stale display, version and month fields without released_at', () => {
   const items = [
