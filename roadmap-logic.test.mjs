@@ -185,3 +185,15 @@ test('public metadata fixture has fictional identities and only previously publi
     assert.equal(Object.hasOwn(row, 'shipped_at'), false);
   }
 });
+
+
+test('absent or empty descriptions create no description row or Read more button', () => {
+  const source = readFileSync(new URL('./app.mjs', import.meta.url), 'utf8');
+  const body = source.slice(source.indexOf('function createDescription('), source.indexOf('function setTeamNoteExpanded('));
+  const create = new Function('el', 'queueDescriptionMeasurement', `${body}; return createDescription;`)(
+    () => { throw new Error('unexpected description DOM creation'); },
+    () => { throw new Error('unexpected description measurement'); },
+  );
+  for (const text of [undefined, null, '', '  ', '... ! —']) assert.equal(create(text), null);
+  assert.equal((source.match(/if \(description\) body.append\(description\);/g) ?? []).length, 2);
+});

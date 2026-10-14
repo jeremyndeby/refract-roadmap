@@ -618,6 +618,7 @@ function queueDescriptionMeasurement(description, copy, toggle = null) {
 }
 
 function createDescription(text, { expandable = true } = {}) {
+  if (typeof text !== 'string' || !/[\p{L}\p{N}]/u.test(text)) return null;
   const description = el('div', 'description');
   const copy = el('p', 'description-text', text);
   description.append(copy);
@@ -747,7 +748,9 @@ function createOpenRow(item, rank) {
   const body = el('div', 'body');
   const heading = el('h2');
   heading.append(link(item.url, item.title));
-  body.append(heading, createDescription(item.excerpt));
+  body.append(heading);
+  const description = createDescription(item.excerpt);
+  if (description) body.append(description);
 
   const meta = el('div', 'meta');
   const age = item.created_at ? relativeAge(item.created_at, state.data.generated_at) : '';
@@ -900,7 +903,9 @@ function createShippedRow(item, maxVotes) {
   // A Shipped card is deliberately non-navigable even while its source thread
   // still exists.  Cleanup must not produce two different public experiences.
   heading.append(el('span', '', item.title));
-  body.append(heading, createDescription(item.excerpt));
+  body.append(heading);
+  const description = createDescription(item.excerpt);
+  if (description) body.append(description);
 
   const meta = el('div', 'meta');
   const metaParts = [];
