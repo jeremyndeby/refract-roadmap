@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#243038">
+  <meta name="description" content="Browse the Refract community roadmap and vote for suggestions on Discord.">
+  <title>Refract — Roadmap</title>
+  <link rel="icon" type="image/png" href="./refract-logo.png">
+  <link rel="apple-touch-icon" href="./refract-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=80f08a9ad3bb">
+</head>
+<body>
+  <div class="spectrum" aria-hidden="true"></div>
+
+  <div class="wrap">
+    <header class="masthead">
+      <div class="brand">
+        <img class="brand-logo" src="./refract-logo.png" alt="" width="76" height="76">
+        <div class="brand-copy">
+          <div class="brand-line">
+            <h1>Refract <span>Roadmap</span></h1>
+            <time class="freshness" id="freshness">loading…</time>
+          </div>
+          <span class="brand-kicker">Built with the community</span>
+        </div>
+      </div>
+      <p class="lede">
+        Everything the community has asked for. Browse it here, vote on Discord.
+      </p>
+      <button
+        class="mobile-voting-toggle"
+        id="mobile-voting-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="voting-explanation"
+      >ⓘ How voting works</button>
+      <p class="priority-note mobile-collapsed" id="voting-explanation">
+        Votes drive priority, but not strictly the order: we weigh them against effort
+        and what's technically ready. Some big things need groundwork first, and quick
+        wins ship in between. 🚧 In progress = actively being built. 📋 Planned = on our
+        list, needs more groundwork first.
+      </p>
+
+      <section class="pulse" aria-label="Roadmap activity">
+        <div class="pulse-totals" aria-label="Roadmap totals">
+          <strong id="pulse-open-total">— suggestions</strong>
+          <span aria-hidden="true">·</span>
+          <strong id="pulse-shipped-total">— shipped</strong>
+        </div>
+        <dl class="pulse-stats" aria-live="polite">
+          <div class="pulse-stat">
+            <dt>new · last 7 days</dt>
+            <dd id="new-last-7-days">—</dd>
+            <span class="period-delta sr-only" id="new-last-7-days-delta" aria-label="Comparison not available yet">Comparison not available yet</span>
+          </div>
+          <div class="pulse-stat">
+            <dt>new · last 30 days</dt>
+            <dd id="new-last-30-days">—</dd>
+            <span class="period-delta sr-only" id="new-last-30-days-delta" aria-label="Comparison not available yet">Comparison not available yet</span>
+          </div>
+          <div class="pulse-stat">
+            <dt>shipped · last 30 days</dt>
+            <dd id="shipped-last-30-days">—</dd>
+            <span class="period-delta sr-only" id="shipped-last-30-days-delta" aria-label="Comparison not available yet">Comparison not available yet</span>
+          </div>
+        </dl>
+      </section>
+      <a class="idea-link" href="https://discord.com/channels/1490347491151970366/1490873391086047252" target="_blank" rel="noreferrer">
+        Have an idea? Suggest it on Discord <span aria-hidden="true">→</span>
+      </a>
+
+      <nav class="tabs" id="roadmap-tabs" role="tablist" aria-label="Roadmap views">
+        <button class="tab" id="tab-open" role="tab" aria-selected="true" aria-controls="view-open" data-view="open">
+          💡 Open <span class="count" id="open-count">—</span>
+        </button>
+        <button class="tab" id="tab-shipped" role="tab" aria-selected="false" aria-controls="view-shipped" data-view="shipped" tabindex="-1">
+          ✅ Shipped <span class="count" id="shipped-count">—</span>
+        </button>
+        <button class="tab" id="tab-timeline" role="tab" aria-selected="false" aria-controls="view-timeline" data-view="timeline" tabindex="-1">
+          📖 Timeline
+        </button>
+        <span class="tab-indicator" id="tab-indicator" aria-hidden="true"></span>
+      </nav>
+      <p class="swipe-hint" id="swipe-hint" hidden aria-hidden="true">‹ swipe ›</p>
+    </header>
+
+    <main id="roadmap-main">
+      <section id="view-open" role="tabpanel" aria-labelledby="tab-open">
+        <div class="toolbar open-toolbar">
+          <div class="toolbar-main">
+            <div class="sort-line">
+              <span class="toolbar-label">Sort</span>
+              <div class="sorts" role="group" aria-label="Sort open suggestions">
+                <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+                <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓ <span class="soon-badge">SOON</span></button>
+                <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+              </div>
+            </div>
+            <div class="search-line">
+              <label class="sr-only" for="open-search">Search open suggestions</label>
+              <input class="search" id="open-search" type="search" autocomplete="off" placeholder="Search suggestions…">
+            </div>
+          </div>
+          <div class="filter-groups">
+            <div class="filter-group">
+              <span class="toolbar-label">Activity</span>
+              <div class="filters" id="activity-filters" role="group" aria-label="Filter suggestions by activity"></div>
+            </div>
+            <div class="filter-group">
+              <span class="toolbar-label">Tags</span>
+              <div class="filters tag-filter-list" id="tag-filters" role="group" aria-label="Filter suggestions by tag"></div>
+            </div>
+          </div>
+        </div>
+        <div id="toolbar-sentinel" aria-hidden="true"></div>
+        <div class="sticky-toolbar" id="sticky-toolbar" aria-label="Sticky roadmap controls">
+          <div class="sorts compact-sorts" role="group" aria-label="Sticky sort controls">
+            <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓</button>
+            <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+          </div>
+          <div class="sticky-active-filters" id="sticky-active-filters"></div>
+          <button class="sticky-clear" id="sticky-clear" type="button" hidden>Clear</button>
+          <button class="icon-button" id="sticky-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="sticky-search">Search open suggestions</label>
+          <input class="search sticky-search" id="sticky-search" type="search" autocomplete="off" hidden>
+        </div>
+        <div class="mobile-toolbar" id="mobile-toolbar" aria-label="Mobile roadmap controls">
+          <button class="mobile-filter-button" id="mobile-filter-open" type="button" aria-haspopup="dialog" aria-controls="filter-sheet">
+            ⇅ Sort &amp; Filter <span id="mobile-filter-count">· 0</span>
+          </button>
+          <button class="icon-button" id="mobile-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="mobile-search">Search open suggestions</label>
+          <input class="search mobile-search" id="mobile-search" type="search" autocomplete="off" hidden>
+        </div>
+        <p class="result-count" id="open-result-count" aria-live="polite"></p>
+        <div class="list" id="open-list" aria-busy="true">
+          <p class="loading">Loading the community roadmap…</p>
+        </div>
+      </section>
+
+      <section id="view-shipped" role="tabpanel" aria-labelledby="tab-shipped" hidden>
+        <div class="toolbar open-toolbar">
+          <div class="toolbar-main">
+            <div class="sort-line">
+              <span class="toolbar-label">Sort</span>
+              <div class="sorts" role="group" aria-label="Sort shipped features">
+                <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+                <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
+              </div>
+            </div>
+            <div class="search-line">
+              <label class="sr-only" for="shipped-search">Search shipped features</label>
+              <input class="search" id="shipped-search" type="search" autocomplete="off" placeholder="Search shipped features…">
+            </div>
+          </div>
+          <div class="filter-groups">
+            <div class="filter-group">
+              <span class="toolbar-label">Activity</span>
+              <div class="filters" id="shipped-activity-filters" role="group" aria-label="Filter shipped features by delivery date"></div>
+            </div>
+            <div class="filter-group">
+              <span class="toolbar-label">Tags</span>
+              <div class="filters tag-filter-list" id="shipped-tag-filters" role="group" aria-label="Filter shipped features by tag"></div>
+            </div>
+          </div>
+        </div>
+        <div id="shipped-toolbar-sentinel" aria-hidden="true"></div>
+        <div class="sticky-toolbar" id="shipped-sticky-toolbar" aria-label="Sticky shipped controls">
+          <div class="sorts compact-sorts" role="group" aria-label="Sticky shipped sort controls">
+            <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+            <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
+          </div>
+          <div class="sticky-active-filters" id="shipped-sticky-active-filters"></div>
+          <button class="sticky-clear" id="shipped-sticky-clear" type="button" hidden>Clear</button>
+          <button class="icon-button" id="shipped-sticky-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="shipped-sticky-search">Search shipped features</label>
+          <input class="search sticky-search" id="shipped-sticky-search" type="search" autocomplete="off" hidden>
+        </div>
+        <div class="mobile-toolbar" id="shipped-mobile-toolbar" aria-label="Mobile shipped controls">
+          <button class="mobile-filter-button" id="shipped-mobile-filter-open" type="button" aria-haspopup="dialog" aria-controls="filter-sheet">
+            ⇅ Sort &amp; Filter <span id="shipped-mobile-filter-count">· 0</span>
+          </button>
+          <button class="icon-button" id="shipped-mobile-search-toggle" type="button" aria-label="Open search" aria-expanded="false">⌕</button>
+          <label class="sr-only" for="shipped-mobile-search">Search shipped features</label>
+          <input class="search mobile-search" id="shipped-mobile-search" type="search" autocomplete="off" hidden>
+        </div>
+        <p class="result-count" id="shipped-result-count" aria-live="polite"></p>
+        <p class="shipped-scale" id="shipped-scale" hidden></p>
+        <div class="list shipped-list" id="shipped-list" aria-busy="true"></div>
+      </section>
+
+      <section id="view-timeline" role="tabpanel" aria-labelledby="tab-timeline" hidden>
+        <div class="timeline-shell" id="timeline-root" aria-busy="true">
+          <p class="loading">Loading the Refract timeline…</p>
+        </div>
+      </section>
+    </main>
+
+    <div class="sheet-backdrop" id="filter-sheet" hidden>
+      <section class="filter-sheet" role="dialog" aria-modal="true" aria-labelledby="filter-sheet-title">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-head">
+          <h2 id="filter-sheet-title">Sort &amp; Filter</h2>
+          <button class="sheet-close" id="filter-sheet-close" type="button" aria-label="Close filters">×</button>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Sort by</span>
+          <div class="sorts sheet-sorts" id="sheet-open-sorts" role="group" aria-label="Mobile open sort controls">
+            <button class="sort" data-open-sort="popularity" aria-pressed="true">Popularity ↓</button>
+            <button class="sort" data-open-sort="hottest" aria-pressed="false">🔥 Trending ↓ <span class="soon-badge">SOON</span></button>
+            <button class="sort" data-open-sort="date" aria-pressed="false">Date ↓</button>
+          </div>
+          <div class="sorts sheet-sorts" id="sheet-shipped-sorts" role="group" aria-label="Mobile shipped sort controls" hidden>
+            <button class="sort" data-shipped-sort="popularity" aria-pressed="false">Popularity ↓</button>
+            <button class="sort" data-shipped-sort="date" aria-pressed="true">Date ↓</button>
+          </div>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Activity</span>
+          <div class="filters sheet-filters" id="sheet-activity-filters" role="group" aria-label="Mobile activity filters"></div>
+        </div>
+        <div class="sheet-section">
+          <span class="toolbar-label">Tags</span>
+          <div class="filters sheet-filters" id="sheet-tag-filters" role="group" aria-label="Mobile tag filters"></div>
+        </div>
+        <button class="sheet-apply" id="filter-sheet-apply" type="button">Show suggestions</button>
+      </section>
+    </div>
+
+    <aside class="discord-cta" aria-labelledby="discord-cta-title">
+      <div>
+        <h2 id="discord-cta-title">💜 Want to vote, or suggest something?</h2>
+        <p>
+          Everything happens on our Discord. React on the posts you want built,
+          and open a new one if your idea isn't here yet.
+        </p>
+      </div>
+      <a class="discord-cta-button" href="https://discord.gg/refract-app" target="_blank" rel="noreferrer">
+        Join the Refract Discord <span aria-hidden="true">↗</span>
+      </a>
+    </aside>
+
+    <footer class="foot">
+      <div>Counts come from reactions on Discord. Updated every 12 hours.</div>
+      <div class="stamp">
+        <a href="https://getrefract.app/">getrefract.app</a>
+      </div>
+    </footer>
+  </div>
+
+  <button class="back-to-top" id="back-to-top" type="button" aria-label="Back to top" aria-hidden="true" tabindex="-1">↑</button>
+
+  <noscript>This page needs JavaScript to load and sort the roadmap.</noscript>
+  <script type="module" src="./app.mjs?v=9e0c015edab9"></script>
+</body>
+</html>
