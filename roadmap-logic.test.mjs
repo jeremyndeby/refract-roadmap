@@ -1,7 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
-import { EARLIER, groupShipped, roadmapContext, releaseDisplay } from './roadmap-logic.mjs';
+import { EARLIER, groupShipped, roadmapContext, releaseDisplay, selectShipped } from './roadmap-logic.mjs';
+
+test('default Shipped order uses hours before popularity and numeric builds for ties', () => {
+  const rows = [
+    { id: 'early', title: 'Early', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T08:00:00.000Z', requested_by: 99 },
+    { id: '99', title: 'A', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T16:00:00.000Z', shipped_in: 'v1.6.99' },
+    { id: '100', title: 'Z', tags: [], released_at: '2026-09-18', shipped_at: '2026-09-18T16:00:00.000Z', shipped_in: 'v1.6.100' },
+    { id: 'unknown', title: 'Unknown hour', tags: [], released_at: '2026-09-18', shipped_in: 'v1.6.101' },
+  ];
+  const before = structuredClone(rows);
+  assert.deepEqual(selectShipped(rows).map(x => x.id), ['100', '99', 'early', 'unknown']);
+  assert.deepEqual(selectShipped(rows, { sort: 'date' }).map(x => x.id), ['early', '99', 'unknown', '100']);
+  assert.equal(selectShipped(rows, { sort: 'popularity' })[0].id, 'early');
+  assert.deepEqual(rows, before);
+});
+
+test('month groups and Earlier remain ordered when release timestamps belong to older months', () => {
+  const rows = [
+    { id: 'sep', title: 'September', tags: [], released_at: '2026-09-01', shipped_at: '2026-09-01T12:00:00.000Z' },
+    { id: 'oct', title: 'October', tags: [], released_at: '2026-10-01', shipped_at: '2026-08-01T12:00:00.000Z' },
+    { id: 'old', title: 'Earlier', tags: [] },
+  ];
+  assert.deepEqual(groupShipped(rows).map(x => x.key), ['2026-10', '2026-09', EARLIER]);
+  assert.deepEqual(groupShipped(rows, { direction: 'asc' }).map(x => x.key), ['2026-09', '2026-10', EARLIER]);
+  assert.equal(selectShipped([{ ...rows[0], shipped_at: 'invalid' }])[0].id, 'sep');
+});
 
 test('monthly grouping ignores stale display, version and month fields without released_at', () => {
   const items = [
@@ -103,4 +129,59 @@ test('Popularity remains one group with the existing requester ordering', () => 
   assert.equal(groups[0].key, 'popularity');
   assert.equal(groups[0].ungrouped, true);
   assert.deepEqual(groups[0].items.map(item => item.id), ['1', '3', '2']);
+});
+
+
+test('displayed day takes precedence over hours and missing hours stay within their day', () => {
+  const rows = [
+    { id: '14', title: 'A', tags: [], released_at: '2026-09-14', shipped_at: '2026-09-14T20:56:03.380Z', requested_by: 99 },
+    { id: '16', title: 'B', tags: [], released_at: '2026-09-16', shipped_at: null },
+    { id: '4', title: 'C', tags: [], released_at: '2026-09-04', shipped_at: '2026-09-04T01:00:00.000Z' },
+    { id: '3', title: 'D', tags: [], released_at: '2026-09-03', shipped_at: '2026-09-03T12:00:00.000Z' },
+    { id: '2', title: 'E', tags: [], released_at: '2026-09-02', shipped_at: '2026-09-02T12:00:00.000Z' },
+    { id: '1', title: 'F', tags: [], released_at: '2026-09-01', shipped_at: '2026-09-01T12:00:00.000Z' },
+    { id: 'earlier', title: 'G', tags: [] },
+  ];
+  assert.deepEqual(selectShipped(rows).map(x => x.id), ['16', '14', '4', '3', '2', '1', 'earlier']);
+});
+
+
+test('real public dates stay monotonic with synthetic test-only hours matching Paris', () => {
+  // Only already-public date/version/heart values are stored in the JSON.
+  // Titles and IDs are fictional. Hours below are synthetic test inputs,
+  // never copied from a tag observation or release announcement.
+  const snapshot = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+  const rows = snapshot.map((row, index) => ({
+    ...row,
+    shipped_at: row.released_at && index % 3 !== 0
+      ? `${row.released_at}T${String(8 + index % 10).padStart(2, '0')}:00:00.000Z`
+      : null,
+  }));
+  assert.equal(rows.length, 262);
+  const sorted = selectShipped(rows);
+  let previous = '9999-12-31';
+  const paris = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' });
+  for (const row of sorted) {
+    const day = row.released_at ?? '';
+    assert(previous >= day, `${previous} before ${day}`);
+    previous = day;
+    if (row.shipped_at) assert.equal(paris.format(new Date(row.shipped_at)), day, row.id);
+  }
+  assert.deepEqual(groupShipped(rows).map(group => [group.key, group.items.length]), [
+    ['2026-10', 7], ['2026-09', 50], ['2026-08', 89], ['2026-07', 17],
+    ['2026-06', 17], ['2026-05', 11], ['2026-04', 20], [EARLIER, 51],
+  ]);
+});
+
+
+test('public metadata fixture has fictional identities and only previously public fields', () => {
+  const snapshot = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+  const allowed = new Set(['id', 'title', 'tags', 'released_at', 'shipped_in', 'requested_by']);
+  for (const row of snapshot) {
+    assert(Object.keys(row).every(key => allowed.has(key)));
+    assert.match(row.id, /^[1-9]\d{0,2}$/u);
+    assert.equal(row.title, `Fixture ${row.id}`);
+    assert.deepEqual(row.tags, []);
+    assert.equal(Object.hasOwn(row, 'shipped_at'), false);
+  }
 });

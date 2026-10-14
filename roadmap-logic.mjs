@@ -33,6 +33,21 @@ function releasedAt(item) {
   return typeof item.released_at === 'string' ? item.released_at : '';
 }
 
+function shippedAt(item) {
+  const value = typeof item.shipped_at === 'string' ? Date.parse(item.shipped_at) : NaN;
+  return Number.isFinite(value) ? value : null;
+}
+
+function compareReleaseBuilds(a, b) {
+  const segments = item => String(item.build ?? item.shipped_in ?? '').match(/^[vV](\d+)\.(\d+)\.(\d+)$/u)?.slice(1).map(BigInt);
+  const aa = segments(a); const bb = segments(b);
+  if (!aa || !bb) return Number(Boolean(aa)) - Number(Boolean(bb));
+  for (let i = 0; i < aa.length; i += 1) {
+    if (aa[i] !== bb[i]) return aa[i] < bb[i] ? -1 : 1;
+  }
+  return 0;
+}
+
 export function discordAppThreadUrl(guildId, threadId) {
   return `discord://-/channels/${guildId}/${threadId}`;
 }
@@ -326,7 +341,7 @@ export function monthLabel(month) {
 
 export function selectShipped(items, {
   query = '',
-  sort = 'date',
+  sort = 'release-time',
   direction = 'desc',
   generatedAt,
   filters = [],
@@ -344,6 +359,21 @@ export function selectShipped(items, {
     });
 
   return [...selected].sort((a, b) => {
+    if (sort === 'release-time') {
+      // Preserve displayed-day chronology; unknown hours follow known hours
+      // only within that same day.
+      const aDate = releasedAt(a); const bDate = releasedAt(b);
+      if (!aDate && bDate) return 1;
+      if (aDate && !bDate) return -1;
+      const dayOrder = aDate.localeCompare(bDate);
+      if (dayOrder) return direction === 'asc' ? dayOrder : -dayOrder;
+      const aa = shippedAt(a); const bb = shippedAt(b);
+      if (aa === null && bb !== null) return 1;
+      if (aa !== null && bb === null) return -1;
+      const order = (aa === null ? 0 : aa - bb) ||
+        compareReleaseBuilds(a, b) || requesters(a) - requesters(b);
+      return (direction === 'asc' ? order : -order) || titleOrder(a, b);
+    }
     if (sort === 'popularity') {
       const order = requesters(a) - requesters(b) ||
         releasedAt(a).localeCompare(releasedAt(b));
@@ -376,7 +406,7 @@ export function releaseDisplay(item, source) {
 }
 
 export function groupShipped(items, options = {}) {
-  const sort = options.sort ?? 'date';
+  const sort = options.sort ?? 'release-time';
   const selected = selectShipped(items, options);
   if (sort === 'popularity') {
     return selected.length === 0 ? [] : [{
@@ -402,5 +432,6 @@ export function groupShipped(items, options = {}) {
     earlier: key === EARLIER,
     ungrouped: false,
     items: groups.get(key),
-  })).sort((a, b) => Number(a.earlier) - Number(b.earlier));
+  })).sort((a, b) => Number(a.earlier) - Number(b.earlier) ||
+    (sort === 'release-time' ? (options.direction === 'asc' ? a.key.localeCompare(b.key) : b.key.localeCompare(a.key)) : 0));
 }

@@ -56,6 +56,7 @@ const state = {
   openGlobalMaxVotes: 1,
   tagsExpanded: false,
   shippedSort: 'date',
+  shippedSortExplicit: false,
   shippedDirection: 'desc',
   shippedFilters: new Set(),
   shippedTagsExpanded: false,
@@ -259,6 +260,7 @@ function setOpenSort(sort) {
 }
 
 function setShippedSort(sort) {
+  state.shippedSortExplicit = true;
   if (state.shippedSort === sort) {
     state.shippedDirection = state.shippedDirection === 'desc' ? 'asc' : 'desc';
   } else {
@@ -983,7 +985,7 @@ function renderShipped() {
   const renderStarted = performance.now();
   const groups = groupShipped(state.data.shipped, {
     query: state.shippedQuery,
-    sort: state.shippedSort,
+    sort: state.shippedSortExplicit ? state.shippedSort : 'release-time',
     direction: state.shippedDirection,
     generatedAt: state.data.generated_at,
     filters: state.shippedFilters,
