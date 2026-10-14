@@ -360,11 +360,17 @@ export function selectShipped(items, {
 
   return [...selected].sort((a, b) => {
     if (sort === 'release-time') {
-      // Unknown hours follow known hours within their unchanged month group.
+      // Preserve displayed-day chronology; unknown hours follow known hours
+      // only within that same day.
+      const aDate = releasedAt(a); const bDate = releasedAt(b);
+      if (!aDate && bDate) return 1;
+      if (aDate && !bDate) return -1;
+      const dayOrder = aDate.localeCompare(bDate);
+      if (dayOrder) return direction === 'asc' ? dayOrder : -dayOrder;
       const aa = shippedAt(a); const bb = shippedAt(b);
       if (aa === null && bb !== null) return 1;
       if (aa !== null && bb === null) return -1;
-      const order = (aa === null ? releasedAt(a).localeCompare(releasedAt(b)) : aa - bb) ||
+      const order = (aa === null ? 0 : aa - bb) ||
         compareReleaseBuilds(a, b) || requesters(a) - requesters(b);
       return (direction === 'asc' ? order : -order) || titleOrder(a, b);
     }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import { EARLIER, groupShipped, roadmapContext, releaseDisplay, selectShipped } from './roadmap-logic.mjs';
 
@@ -128,4 +129,38 @@ test('Popularity remains one group with the existing requester ordering', () => 
   assert.equal(groups[0].key, 'popularity');
   assert.equal(groups[0].ungrouped, true);
   assert.deepEqual(groups[0].items.map(item => item.id), ['1', '3', '2']);
+});
+
+
+test('displayed day takes precedence over hours and missing hours stay within their day', () => {
+  const rows = [
+    { id: '14', title: 'A', tags: [], released_at: '2026-09-14', shipped_at: '2026-09-14T20:56:03.380Z', requested_by: 99 },
+    { id: '16', title: 'B', tags: [], released_at: '2026-09-16', shipped_at: null },
+    { id: '4', title: 'C', tags: [], released_at: '2026-09-04', shipped_at: '2026-09-04T01:00:00.000Z' },
+    { id: '3', title: 'D', tags: [], released_at: '2026-09-03', shipped_at: '2026-09-03T12:00:00.000Z' },
+    { id: '2', title: 'E', tags: [], released_at: '2026-09-02', shipped_at: '2026-09-02T12:00:00.000Z' },
+    { id: '1', title: 'F', tags: [], released_at: '2026-09-01', shipped_at: '2026-09-01T12:00:00.000Z' },
+    { id: 'earlier', title: 'G', tags: [] },
+  ];
+  assert.deepEqual(selectShipped(rows).map(x => x.id), ['16', '14', '4', '3', '2', '1', 'earlier']);
+});
+
+
+test('real 262-item metadata snapshot has no displayed-day inversions and every hour matches Paris', () => {
+  // Real date/time/version/heart values; titles and original IDs removed.
+  const rows = JSON.parse(readFileSync(new URL('./test-fixtures/shipped-time-real.json', import.meta.url)));
+  assert.equal(rows.length, 262);
+  const sorted = selectShipped(rows);
+  let previous = '9999-12-31';
+  const paris = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' });
+  for (const row of sorted) {
+    const day = row.released_at ?? '';
+    assert(previous >= day, `${previous} before ${day}`);
+    previous = day;
+    if (row.shipped_at) assert.equal(paris.format(new Date(row.shipped_at)), day, row.id);
+  }
+  assert.deepEqual(groupShipped(rows).map(group => [group.key, group.items.length]), [
+    ['2026-10', 7], ['2026-09', 50], ['2026-08', 89], ['2026-07', 17],
+    ['2026-06', 17], ['2026-05', 11], ['2026-04', 20], [EARLIER, 51],
+  ]);
 });
