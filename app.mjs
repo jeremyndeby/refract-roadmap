@@ -1047,27 +1047,6 @@ function renderShippedScale() {
   elements.shippedScale.hidden = false;
 }
 
-function createTimelineGoal(goal) {
-  const section = el('section', 'timeline-goal');
-  section.setAttribute('aria-label', 'Refract Pro community goal');
-  const head = el('div', 'timeline-goal-head');
-  head.append(
-    el('strong', '', goal.title),
-    el('span', 'timeline-goal-value', goal.value),
-  );
-  const progress = el('div', 'timeline-progress');
-  progress.setAttribute('role', 'progressbar');
-  progress.setAttribute('aria-label', goal.title);
-  progress.setAttribute('aria-valuemin', '0');
-  progress.setAttribute('aria-valuemax', '100');
-  progress.setAttribute('aria-valuenow', String(goal.progress_percent));
-  const fill = el('div', 'timeline-progress-fill');
-  fill.style.width = `${goal.progress_percent}%`;
-  progress.append(fill);
-  section.append(head, progress, el('p', 'timeline-goal-caption', goal.caption));
-  return section;
-}
-
 function createTimelineHeading(node) {
   const head = el('div', 'timeline-version-head');
   head.append(el('h2', 'timeline-version-title', node.title));
@@ -1261,7 +1240,6 @@ function createTimelineNode(node) {
 function renderTimeline() {
   const renderStarted = performance.now();
   const fragment = document.createDocumentFragment();
-  fragment.append(createTimelineGoal(state.data.timeline.goal));
   const timeline = el('div', 'timeline');
   for (const year of state.data.timeline.years) {
     const label = el('div', `timeline-year-label timeline-year-label-${year.tone}`);
