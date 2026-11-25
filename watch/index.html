@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refract Watch Party Clock</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#0e0b18; --card:#191527; --text:#ffffff; --muted:#b8b2d9; --accent:#a29bfe; --teal:#3ed3bf; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { background:radial-gradient(circle at 50% 0%, #241c45 0%, var(--bg) 60%); color:var(--text);
+         font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         display:flex; align-items:center; justify-content:center; padding:16px; }
+  .wrap { width:100%; max-width:640px; text-align:center; }
+  .pill { display:inline-block; background:var(--teal); color:#062022; font-weight:800; letter-spacing:.06em;
+          font-size:13px; padding:8px 16px; border-radius:999px; text-transform:uppercase; }
+  h1 { font-size:clamp(20px,5vw,30px); font-weight:800; margin:18px 0 6px; }
+  .status { color:var(--muted); font-size:clamp(15px,4vw,18px); min-height:1.4em; }
+  .clock { font-variant-numeric:tabular-nums; font-weight:800; line-height:1;
+           font-size:clamp(64px,20vw,150px); margin:28px 0 18px; letter-spacing:-.02em; }
+  .clock.pre { color:var(--accent); }
+  .bar { height:8px; background:#2a2440; border-radius:99px; overflow:hidden; margin:0 auto 22px; max-width:480px; }
+  .bar > div { height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--teal)); }
+  .card { background:var(--card); border-radius:16px; padding:16px 18px; color:var(--muted); font-size:15px; line-height:1.5; }
+  .card b { color:var(--text); }
+  .foot { margin-top:18px; color:#7d77a3; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <span class="pill">Refract Movie Club · Watch Party</span>
+  <h1 id="title">Watch Party</h1>
+  <p class="status" id="status">Loading…</p>
+  <div class="clock" id="clock">0:00:00</div>
+  <div class="bar"><div id="bar"></div></div>
+  <div class="card" id="tip">Keep this page open. When the countdown hits zero, press play.<br>Late or got an ad? Skip your movie to the time shown above and you're back in sync.</div>
+  <p class="foot" id="foot"></p>
+</div>
+<script>
+(function () {
+  var p = new URLSearchParams(location.search);
+  var start = Date.parse(p.get('start') || '');
+  var dur = Math.max(1, parseInt(p.get('dur') || '120', 10)) * 60;
+  var title = (p.get('title') || '').slice(0, 80);
+  var $ = function (id) { return document.getElementById(id); };
+  if (title) { $('title').textContent = title; document.title = title + ' · Watch Party Clock'; }
+  if (isNaN(start)) {
+    $('status').textContent = 'No start time in the link.';
+    $('clock').textContent = '--:--';
+    return;
+  }
+  // Correct the device clock with the server Date header (1 s precision).
+  var offset = 0;
+  try {
+    var t0 = Date.now();
+    fetch(location.pathname + '?sync=' + t0, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      var d = Date.parse(r.headers.get('Date') || '');
+      if (!isNaN(d)) {
+        var t1 = Date.now();
+        var o = d + 500 - (t0 + t1) / 2;
+        if (Math.abs(o) > 1500) offset = o;
+      }
+    }).catch(function () {});
+  } catch (e) {}
+  var fmt = function (s) {
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    var hms = String(h).padStart(d ? 2 : 1, '0') + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
+    return d ? d + 'd ' + hms : hms;
+  };
+  var local = new Date(start);
+  $('foot').textContent = 'Movie starts ' + local.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) + ' at ' + local.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' your time';
+  function tick() {
+    var now = Date.now() + offset;
+    var diff = Math.floor((now - start) / 1000);
+    var clock = $('clock');
+    if (diff < 0) {
+      clock.className = 'clock pre';
+      clock.textContent = fmt(-diff);
+      $('status').textContent = -diff <= 10 ? 'Get ready…' : (-diff > 3600 ? 'Movie starts in' : 'Press play when this hits zero');
+      $('bar').style.width = '0%';
+    } else if (diff < dur) {
+      clock.className = 'clock';
+      clock.textContent = fmt(diff);
+      $('status').textContent = diff < 5 ? '▶️ PLAY!' : 'Your movie should be at';
+      $('bar').style.width = (100 * diff / dur).toFixed(2) + '%';
+    } else {
+      clock.className = 'clock';
+      clock.textContent = fmt(dur);
+      $('status').textContent = "🎬 That's a wrap! Share your rating and your favorite moment 💜";
+      $('bar').style.width = '100%';
+    }
+    setTimeout(tick, 1000 - ((Date.now() + offset) % 1000) + 5);
+  }
+  tick();
+})();
+</script>
+</body>
+</html>
