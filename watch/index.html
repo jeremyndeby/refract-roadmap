@@ -5,89 +5,134 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Refract Watch Party Clock</title>
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0e0b18; --card:#191527; --text:#ffffff; --muted:#b8b2d9; --accent:#a29bfe; --teal:#3ed3bf; }
+  :root { --bg:#0b0b10; --tile:#141419; --text:#ffffff; --muted:#9a9aa8; --accent:#a29bfe; --teal:#3ed3bf; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  html, body { height:100%; }
-  body { background:radial-gradient(circle at 50% 0%, #241c45 0%, var(--bg) 60%); color:var(--text);
-         font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         display:flex; align-items:center; justify-content:center; padding:16px; }
-  .wrap { width:100%; max-width:640px; text-align:center; }
-  .pill { display:inline-block; background:var(--teal); color:#062022; font-weight:800; letter-spacing:.06em;
-          font-size:13px; padding:8px 16px; border-radius:999px; text-transform:uppercase; }
-  h1 { font-size:clamp(20px,5vw,30px); font-weight:800; margin:18px 0 6px; }
-  .status { color:var(--muted); font-size:clamp(15px,4vw,18px); min-height:1.4em; }
-  .clock { font-variant-numeric:tabular-nums; font-weight:800; line-height:1;
-           font-size:clamp(64px,20vw,150px); margin:28px 0 18px; letter-spacing:-.02em; }
-  .clock.pre { color:var(--accent); }
-  .bar { height:8px; background:#2a2440; border-radius:99px; overflow:hidden; margin:0 auto 22px; max-width:480px; }
+  html, body { min-height:100%; }
+  body { background:var(--bg); color:var(--text); font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         min-height:100vh; display:flex; flex-direction:column; }
+  .hero { position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+          padding:48px 16px 40px; text-align:center; overflow:hidden; }
+  .hero::before { content:""; position:absolute; inset:0; background-image:var(--bgimg, none); background-size:cover;
+                  background-position:center 30%; z-index:-2; }
+  .hero::after { content:""; position:absolute; inset:0; z-index:-1;
+                 background:linear-gradient(180deg, rgba(11,11,16,.25) 0%, rgba(11,11,16,.55) 40%, rgba(11,11,16,.92) 72%, var(--bg) 100%); }
+  .pill { display:inline-block; background:var(--teal); color:#062022; font-weight:800; letter-spacing:.08em;
+          font-size:12px; padding:7px 14px; border-radius:999px; text-transform:uppercase; }
+  .logo { display:block; width:min(60vw,320px); height:auto; margin:14px auto 6px; filter:drop-shadow(0 6px 22px rgba(0,0,0,.55)); }
+  h1 { font-size:clamp(28px,8vw,48px); font-weight:800; margin:14px 0 4px; text-shadow:0 2px 18px rgba(0,0,0,.6); }
+  .sub { color:#d6d6e0; font-size:clamp(14px,3.6vw,17px); font-weight:500; text-shadow:0 1px 10px rgba(0,0,0,.6); }
+  .label { margin-top:30px; color:#c9c9d6; font-size:clamp(14px,3.6vw,18px); font-weight:700; letter-spacing:.16em; text-transform:uppercase; }
+  .counter { display:flex; align-items:flex-start; justify-content:center; gap:clamp(4px,1.6vw,10px); margin-top:14px; }
+  .group { display:flex; flex-direction:column; align-items:center; }
+  .digits { display:flex; gap:clamp(3px,1vw,6px); }
+  .d { background:var(--tile); border-radius:clamp(8px,2vw,12px); width:clamp(34px,10.5vw,64px); height:clamp(48px,14.5vw,88px);
+       display:flex; align-items:center; justify-content:center; font-weight:700; font-size:clamp(28px,9vw,54px);
+       font-variant-numeric:tabular-nums; box-shadow:inset 0 -1px 0 rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.35); }
+  .counter.wide .d { width:clamp(28px,8.3vw,58px); height:clamp(42px,12vw,80px); font-size:clamp(24px,7.2vw,48px); }
+  .counter.wide .colon { font-size:clamp(18px,5.4vw,40px); line-height:clamp(42px,12vw,80px); }
+  .counter.wide { gap:clamp(2px,1vw,8px); }
+  .counter.wide .digits { gap:clamp(2px,.7vw,5px); }
+  .unit { margin-top:8px; color:var(--muted); font-size:clamp(10px,2.6vw,13px); font-weight:600; letter-spacing:.14em; }
+  .colon { color:var(--muted); font-weight:700; font-size:clamp(24px,7vw,44px); line-height:clamp(48px,14.5vw,88px); }
+  .state { margin-top:22px; font-size:clamp(16px,4.4vw,22px); font-weight:800; min-height:1.3em; }
+  .state.play { color:var(--teal); }
+  .bar { width:min(100%,520px); height:6px; background:#22222b; border-radius:99px; overflow:hidden; margin:18px auto 0; }
   .bar > div { height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--teal)); }
-  .card { background:var(--card); border-radius:16px; padding:16px 18px; color:var(--muted); font-size:15px; line-height:1.5; }
-  .card b { color:var(--text); }
-  .foot { margin-top:18px; color:#7d77a3; font-size:12px; }
+  .info { padding:0 16px 36px; text-align:center; }
+  .tip { max-width:520px; margin:0 auto; color:var(--muted); font-size:15px; line-height:1.55; }
+  .tip b { color:var(--text); font-weight:600; }
+  .where { display:inline-block; margin-top:18px; padding:12px 18px; border-radius:14px; background:#17171e; color:#e8e8f0;
+           font-size:14px; font-weight:600; text-decoration:none; line-height:1.4; max-width:520px; }
+  .where:hover { background:#1f1f29; }
+  .foot { margin-top:14px; color:#6e6e7c; font-size:12px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<section class="hero" id="hero">
   <span class="pill">Refract Movie Club · Watch Party</span>
   <h1 id="title">Watch Party</h1>
-  <p class="status" id="status">Loading…</p>
-  <div class="clock" id="clock">0:00:00</div>
+  <img class="logo" id="logo" alt="" hidden>
+  <p class="sub" id="when"></p>
+  <p class="label" id="label">Movie starts in</p>
+  <div class="counter" id="counter"></div>
+  <p class="state" id="state"></p>
   <div class="bar"><div id="bar"></div></div>
-  <div class="card" id="tip">Keep this page open. When the countdown hits zero, press play.<br>Late or got an ad? Skip your movie to the time shown above and you're back in sync.</div>
-  <p class="foot" id="foot"></p>
-</div>
+</section>
+<section class="info">
+  <p class="tip">Keep this page open next to your movie. When the counter hits zero, <b>press play on your streaming platform</b>.<br>Late or got an ad? Skip your movie to the time shown and you're back in sync.</p>
+  <a class="where" href="https://movienight-plum.vercel.app/" target="_blank" rel="noopener">📺 Not sure where to watch it? Find where to stream, rent or buy it in your country</a>
+  <p class="foot">getrefract.app</p>
+</section>
 <script>
 (function () {
   var p = new URLSearchParams(location.search);
   var start = Date.parse(p.get('start') || '');
   var dur = Math.max(1, parseInt(p.get('dur') || '120', 10)) * 60;
   var title = (p.get('title') || '').slice(0, 80);
+  var bg = (p.get('bg') || '').toLowerCase();
   var $ = function (id) { return document.getElementById(id); };
+  if (/^[a-z0-9-]{1,40}$/.test(bg)) $('hero').style.setProperty('--bgimg', 'url("bg-' + bg + '.jpg")');
   if (title) { $('title').textContent = title; document.title = title + ' · Watch Party Clock'; }
-  if (isNaN(start)) {
-    $('status').textContent = 'No start time in the link.';
-    $('clock').textContent = '--:--';
-    return;
+  var logo = (p.get('logo') || '').toLowerCase();
+  if (/^[a-z0-9-]{1,40}$/.test(logo)) {
+    var img = $('logo');
+    img.onload = function () { img.hidden = false; $('title').hidden = true; };
+    img.alt = title || 'Movie logo';
+    img.src = 'logo-' + logo + '.png';
   }
-  // Correct the device clock with the server Date header (1 s precision).
+  if (isNaN(start)) { $('label').textContent = 'No start time in the link'; return; }
   var offset = 0;
   try {
     var t0 = Date.now();
     fetch(location.pathname + '?sync=' + t0, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
       var d = Date.parse(r.headers.get('Date') || '');
-      if (!isNaN(d)) {
-        var t1 = Date.now();
-        var o = d + 500 - (t0 + t1) / 2;
-        if (Math.abs(o) > 1500) offset = o;
-      }
+      if (!isNaN(d)) { var o = d + 500 - (t0 + Date.now()) / 2; if (Math.abs(o) > 1500) offset = o; }
     }).catch(function () {});
   } catch (e) {}
-  var fmt = function (s) {
-    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-    var hms = String(h).padStart(d ? 2 : 1, '0') + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
-    return d ? d + 'd ' + hms : hms;
-  };
-  var local = new Date(start);
-  $('foot').textContent = 'Movie starts ' + local.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) + ' at ' + local.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' your time';
+  var s = new Date(start);
+  $('when').textContent = s.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }) + ' · ' +
+    s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' your time · ' + Math.round(dur / 60) + ' min';
+  var last = '';
+  function render(secs, withDays) {
+    var d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.floor((secs % 3600) / 60), x = secs % 60;
+    var parts = [];
+    if (withDays && d > 0) parts.push([String(d).padStart(2, '0'), 'DAYS']);
+    parts.push([String(withDays ? h : Math.floor(secs / 3600)).padStart(2, '0'), 'HOURS']);
+    parts.push([String(m).padStart(2, '0'), 'MIN']);
+    parts.push([String(x).padStart(2, '0'), 'SEC']);
+    var key = parts.map(function (q) { return q[0]; }).join(':');
+    if (key === last) return; last = key;
+    var html = parts.map(function (q, i) {
+      var digits = q[0].split('').map(function (c) { return '<div class="d">' + c + '</div>'; }).join('');
+      return (i ? '<div class="colon">:</div>' : '') + '<div class="group"><div class="digits">' + digits + '</div><div class="unit">' + q[1] + '</div></div>';
+    }).join('');
+    $('counter').className = 'counter' + (parts.length > 3 ? ' wide' : '');
+    $('counter').innerHTML = html;
+  }
   function tick() {
     var now = Date.now() + offset;
     var diff = Math.floor((now - start) / 1000);
-    var clock = $('clock');
     if (diff < 0) {
-      clock.className = 'clock pre';
-      clock.textContent = fmt(-diff);
-      $('status').textContent = -diff <= 10 ? 'Get ready…' : (-diff > 3600 ? 'Movie starts in' : 'Press play when this hits zero');
+      $('label').textContent = 'Movie starts in';
+      render(-diff, true);
+      $('state').textContent = -diff <= 10 ? 'Get ready…' : '';
+      $('state').className = 'state';
       $('bar').style.width = '0%';
     } else if (diff < dur) {
-      clock.className = 'clock';
-      clock.textContent = fmt(diff);
-      $('status').textContent = diff < 5 ? '▶️ PLAY!' : 'Your movie should be at';
+      $('label').textContent = 'Your movie should be at';
+      render(diff, false);
+      $('state').textContent = diff < 8 ? '▶️ Press play on your platform!' : '';
+      $('state').className = 'state play';
       $('bar').style.width = (100 * diff / dur).toFixed(2) + '%';
     } else {
-      clock.className = 'clock';
-      clock.textContent = fmt(dur);
-      $('status').textContent = "🎬 That's a wrap! Share your rating and your favorite moment 💜";
+      $('label').textContent = 'The movie is over';
+      render(dur, false);
+      $('state').textContent = "🎬 That's a wrap! Share your rating 💜";
+      $('state').className = 'state play';
       $('bar').style.width = '100%';
     }
     setTimeout(tick, 1000 - ((Date.now() + offset) % 1000) + 5);
